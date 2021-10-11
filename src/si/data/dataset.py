@@ -1,5 +1,5 @@
 import numpy as np
-from si.util.util import label_gen
+from ..util.util import label_gen
 
 __all__ = ['Dataset']
 
@@ -60,7 +60,6 @@ class Dataset:
             xnames = list(df.columns)
             yname = None
         return cls(X, Y, xnames, yname)
-
 
     def __len__(self):
         """Returns the number of data points."""

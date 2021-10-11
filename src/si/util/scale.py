@@ -1,6 +1,5 @@
 import numpy as np
 from copy import copy
-from ..data import Dataset
 
 
 class StandardScaler:
@@ -50,6 +49,7 @@ class StandardScaler:
             dataset.X = Z
             return dataset
         else:
+            from ..data import Dataset
             return Dataset(Z,
                            copy(dataset.Y),
                            copy(dataset._xnames),
@@ -88,6 +88,7 @@ class StandardScaler:
             dataset.X = X
             return dataset
         else:
+            from ..data import Dataset
             return Dataset(X,
                            copy(dataset.Y),
                            copy(dataset._xnames),
