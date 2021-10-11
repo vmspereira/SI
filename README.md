@@ -14,15 +14,12 @@
 
 
 
-The src folder contains the base source over which you will implement you code.
+The *src* folder contains the base source over which you will implement you code.
 
-The tests folder are pythont test for continuous integration.
+The *tests* folder are python tests for continuous integration.
 
-The dataset folder contains some illustrative datasets.
+The *dataset* folder contains some illustrative datasets.
 
-The script folder contains some scripts to test yout code:
+The *script* folder contains some scripts to test yout code:
 
 `python scripts/dataset.py`
-
-
-
