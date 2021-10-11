@@ -10,7 +10,7 @@ class Dataset:
                  yname: str = None):
         """ Tabular Dataset"""
         if X is None:
-            raise Exception("Trying to instanciate DataSet without data")
+            raise Exception("Trying to instanciate a DataSet without any data")
         self.X = X
         self.Y = Y
         self._xnames = xnames if xnames else label_gen(X.shape[1])
@@ -54,7 +54,7 @@ class Dataset:
         return self.X.shape[0]
 
     def hasLabel(self):
-        """Returns True if the dataset constains labels"""
+        """Returns True if the dataset constains labels (a dependent variable)"""
         pass
 
     def getNumFeatures(self):
@@ -66,7 +66,14 @@ class Dataset:
         pass
 
     def writeDataset(self, filename, sep=","):
-        """Saves the dataset to a file"""
+        """Saves the dataset to a file
+
+        :param filename: The output file path
+        :type filename: str
+        :param sep: The fields separator, defaults to ","
+        :type sep: str, optional
+        """
+
         fullds = np.hstack((self.X, self.Y.reshape(len(self.Y), 1)))
         np.savetxt(filename, fullds, delimiter=sep)
 

@@ -25,5 +25,11 @@ def label_gen(n):
 
 
 def summary(dataset, format='df'):
-    """ returns the statistics of a dataset (mean,std,max,min)"""
+    """ Returns the statistics of a dataset(mean, std, max, min)
+
+    :param dataset: A Dataset object
+    :type dataset: si.data.Dataset
+    :param format: Output format ('df':DataFrame, 'dict':dictionary ), defaults to 'df'
+    :type format: str, optional
+    """
     pass
