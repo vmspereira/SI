@@ -21,9 +21,6 @@ class TestUnlabeledDataset(unittest.TestCase):
     def testLen(self):
         self.assertGreater(len(self.dataset), 0)
 
-    def test
-    
-
 
 class TestLabeledDataset(TestUnlabeledDataset):
 
