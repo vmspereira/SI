@@ -1,5 +1,4 @@
-from si.util import StandardScaler
-from si.data import Dataset
+from si.data import Dataset, StandardScaler, summary, VarianceThreshold
 import os
 
 DIR = os.path.dirname(os.path.realpath(__file__))
@@ -10,10 +9,16 @@ print("Without labels\n\n")
 dataset = Dataset.from_data(filename, labeled=False)
 
 print("X=\n", dataset.X[:10, :])
-print("Y=\n", dataset.Y)
+print("Y=\n", dataset.y)
 print("has label", dataset.hasLabel())
 print("Number of features", dataset.getNumFeatures())
 print("Number of classes", dataset.getNumClasses())
+# Summary
+print(summary(dataset))
+# VarianceThreshold
+vs = VarianceThreshold(15)
+dataset2 = vs.fit_transform(dataset)
+print(summary(dataset2))
 
 print("\nScalling")
 sc = StandardScaler()
@@ -24,7 +29,7 @@ print("\n\nWith labels\n\n")
 
 dataset = Dataset.from_data(filename, labeled=True)
 print("X=\n", dataset.X[:10, :])
-print("Y=\n", dataset.Y[:10])
+print("Y=\n", dataset.y[:10])
 print("has label", dataset.hasLabel())
 print("Number of features", dataset.getNumFeatures())
 # Those are not classes... Y is a continuous variable

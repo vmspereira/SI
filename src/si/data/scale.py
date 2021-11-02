@@ -49,9 +49,9 @@ class StandardScaler:
             dataset.X = Z
             return dataset
         else:
-            from ..data import Dataset
+            from . import Dataset
             return Dataset(Z,
-                           copy(dataset.Y),
+                           copy(dataset.y),
                            copy(dataset._xnames),
                            copy(dataset._yname))
 
@@ -88,8 +88,8 @@ class StandardScaler:
             dataset.X = X
             return dataset
         else:
-            from ..data import Dataset
+            from . import Dataset
             return Dataset(X,
-                           copy(dataset.Y),
+                           copy(dataset.y),
                            copy(dataset._xnames),
                            copy(dataset._yname))
