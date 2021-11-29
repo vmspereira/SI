@@ -1,2 +1,3 @@
 from .util import *
-from .scale import *
+from .metrics import *
+from .cv import CrossValidationScore, GridSearchCV
