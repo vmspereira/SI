@@ -1,12 +1,11 @@
-import itertools
+import numpy as np
 
 # Y is reserved to idenfify dependent variables
 ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXZ'
 
-__all__ = ['label_gen', 'summary']
-
 
 def label_gen(n):
+    import itertools
     """ Generates a list of n distinct labels similar to Excel"""
     def _iter_all_strings():
         size = 1
@@ -24,12 +23,42 @@ def label_gen(n):
     return [gen() for _ in range(n)]
 
 
-def summary(dataset, format='df'):
-    """ Returns the statistics of a dataset(mean, std, max, min)
-
-    :param dataset: A Dataset object
-    :type dataset: si.data.Dataset
-    :param format: Output format ('df':DataFrame, 'dict':dictionary ), defaults to 'df'
-    :type format: str, optional
+def l1_distance(x, y):
+    """Computes the manhatan distance of a point (x) to a set of
+    points y.
+    x.shape=(n,) and y.shape=(m,n)
     """
-    pass
+    import numpy as np
+    dist = (np.absolute(x - y)).sum(axis=1)
+    return dist
+
+
+def l2_distance(x, y):
+    """Computes the euclidean distance of a point (x) to a set of
+    points y.
+    x.shape=(n,) and y.shape=(m,n)
+    """
+    dist = ((x - y) ** 2).sum(axis=1)
+    return dist
+
+
+def train_test_split(dataset, split=0.8):
+    from ..data import Dataset
+    n = dataset.X.shape[0]
+    m = int(split*n)
+    arr = np.arange(n)
+    np.random.shuffle(arr)
+    train_mask = arr[:m]
+    test_mask = arr[m:]
+
+    train = Dataset(dataset.X[train_mask], dataset.y[train_mask], dataset._xnames, dataset._yname)
+    test = Dataset(dataset.X[test_mask], dataset.y[test_mask], dataset._xnames, dataset._yname)
+    return train, test
+
+
+def sigmoid(z):
+    return 1 / (1 + np.exp(-z))
+
+
+def add_intersect(X):
+    return np.hstack((np.ones((X.shape[0], 1)), X))
