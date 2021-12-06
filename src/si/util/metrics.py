@@ -19,7 +19,7 @@ def accuracy_score(y_true, y_pred):
     return accuracy
 
 
-def mse(y_true, y_pred, squared=True):
+def mse(y_true, y_pred):
     """
     Mean squared error regression loss function.
     Parameters
@@ -28,15 +28,21 @@ def mse(y_true, y_pred, squared=True):
         Ground truth (correct) target values.
     :param numpy.array y_pred: array-like of shape (n_samples,)
         Estimated target values.
-    :param bool squared: If True returns MSE, if False returns RMSE. Default=True
     :returns: loss (float) A non-negative floating point value (the best value is 0.0).
     """
-    y_true = np.array(y_true)
-    y_pred = np.array(y_pred)
-    errors = np.average((y_true - y_pred) ** 2, axis=0)
-    if not squared:
-        errors = np.sqrt(errors)
-    return np.average(errors)
+    return np.mean(np.power(y_true-y_pred, 2))
+
+
+def mse_prime(y_true, y_pred):
+    return 2*(y_pred-y_true)/y_true.size
+
+
+def cross_entropy(y_true, y_pred):
+    return -(y_true * np.log(y_pred)).sum()
+
+
+def cross_entropy_prime(y_true, y_pred):
+    return y_pred - y_true
 
 
 def r2_score(y_true, y_pred):

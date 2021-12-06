@@ -56,9 +56,9 @@ def train_test_split(dataset, split=0.8):
     return train, test
 
 
-def sigmoid(z):
-    return 1 / (1 + np.exp(-z))
-
-
 def add_intersect(X):
     return np.hstack((np.ones((X.shape[0], 1)), X))
+
+
+def sigmoid(z):
+    return 1 / (1 + np.exp(-z))
