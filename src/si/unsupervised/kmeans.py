@@ -1,3 +1,11 @@
+# -*- coding: utf-8 -*-
+# ----------------------------------------------------------------------------
+# Created By  : Vítor Pereira
+# Created Date: 01-09-2021
+# version ='0.0.1'
+# ---------------------------------------------------------------------------
+"""KMeans module"""
+# ---------------------------------------------------------------------------
 import numpy as np
 from ..util import l2_distance
 
@@ -16,17 +24,15 @@ class KMeans:
         self._max = np.max(x, axis=0)
 
     def init_centroids(self, dataset):
-        """Generates k centroids from uniform
-        distributions bounded by the min and max values
-        of each feature.
+        """Generates k centroids.
+        There are many ways to achieve that...
 
         :param dataset: The dataset object
         """
-        x = dataset.X
-        self.centroids = np.array(
-            [np.random.uniform(
-                low=self._min[i], high=self._max[i], size=(self.k,)
-            ) for i in range(x.shape[1])]).T
+        X = dataset.X
+        rng = np.random.default_rng()
+        centroids = rng.choice(X, self.k)
+        return centroids
 
     def get_closest_centroid(self, x):
         """Identifies the index of the centroid closest to point x.

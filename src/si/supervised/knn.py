@@ -1,3 +1,11 @@
+# -*- coding: utf-8 -*-
+# ----------------------------------------------------------------------------
+# Created By  : Vítor Pereira
+# Created Date: 01-09-2021
+# version ='0.0.1'
+# ---------------------------------------------------------------------------
+"""k-nearest neighbors module"""
+# ---------------------------------------------------------------------------
 from .model import Model
 from ..util import l2_distance, accuracy_score
 import numpy as np

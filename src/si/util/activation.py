@@ -1,3 +1,12 @@
+# -*- coding: utf-8 -*-
+# ----------------------------------------------------------------------------
+# Created By  : Vítor Pereira
+# Created Date: 01-09-2021
+# version ='0.0.1'
+# ---------------------------------------------------------------------------
+"""Activation functions module"""
+# ---------------------------------------------------------------------------
+
 import numpy as np
 from abc import ABC, abstractmethod
 
@@ -33,11 +42,12 @@ class Sigmoid(ActivationBase):
         return "Sigmoid"
 
     def fn(self, z):
-        return 1. / (1. + np.exp(-z))
+        return 1.0 / (1.0 + np.exp(-z))
 
     def prime(self, z):
         fn_x = self.fn(z)
-        return fn_x * (1 - fn_x)
+        res = fn_x * (1 - fn_x)
+        return res
 
     def prime2(self, x):
         """
@@ -56,11 +66,11 @@ class ReLU(ActivationBase):
     def __str__(self):
         return "ReLU"
 
-    def fn(self, z):
-        return np.clip(z, 0, np.inf)
+    def fn(self, X):
+        return np.where(X > 0, X, 0)
 
-    def prime(self, x):
-        return (x > 0).astype(int)
+    def prime(self, X):
+        return np.where(X > 0, 1, 0)
 
     def prime2(self, x):
         return np.zeros_like(x)
@@ -202,12 +212,11 @@ class SELU(ActivationBase):
 
     def prime(self, x):
         return np.where(
-            x >= 0, np.ones_like(x) * self.scale,
-            np.exp(x) * self.alpha * self.scale)
+            x >= 0, np.ones_like(x) * self.scale, np.exp(x) * self.alpha * self.scale
+        )
 
     def prime2(self, x):
-        return np.where(x > 0, np.zeros_like(x),
-                        np.exp(x) * self.alpha * self.scale)
+        return np.where(x > 0, np.zeros_like(x), np.exp(x) * self.alpha * self.scale)
 
 
 class HardSigmoid(ActivationBase):

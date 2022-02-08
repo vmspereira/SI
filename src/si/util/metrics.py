@@ -1,3 +1,11 @@
+# -*- coding: utf-8 -*-
+# ----------------------------------------------------------------------------
+# Created By  : Vítor Pereira
+# Created Date: 01-09-2021
+# version ='0.0.1'
+# ---------------------------------------------------------------------------
+"""Metrics module"""
+# ---------------------------------------------------------------------------
 
 import numpy as np
 
@@ -38,11 +46,13 @@ def mse_prime(y_true, y_pred):
 
 
 def cross_entropy(y_true, y_pred):
-    return -(y_true * np.log(y_pred)).sum()
+    m = y_pred.shape[0]
+    return -(y_true * np.log(y_pred)).sum()/m
 
 
 def cross_entropy_prime(y_true, y_pred):
-    return y_pred - y_true
+    m = y_pred.shape[0]
+    return (y_pred - y_true)/m
 
 
 def r2_score(y_true, y_pred):

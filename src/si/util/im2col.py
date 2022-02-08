@@ -1,3 +1,11 @@
+# -*- coding: utf-8 -*-
+# ----------------------------------------------------------------------------
+# Created By  : Vítor Pereira
+# Created Date: 01-09-2021
+# version ='0.0.1'
+# ---------------------------------------------------------------------------
+"""Image to column"""
+# ---------------------------------------------------------------------------
 import numpy as np
 
 
@@ -94,13 +102,13 @@ def _im2col_indices(X_shape, fr, fc, p, s):
 
 
 def im2col(X, W_shape, pad, stride):
+
     fr, fc, n_in, n_out = W_shape
     s, p = stride, pad
-    n_ex, in_rows, in_cols, n_in = X.shape
 
+    n_ex, in_rows, in_cols, n_in = X.shape
     # zero-pad the input
     X_pad, p = pad2D(X, p, W_shape[:2], stride=s)
-    pr1, pr2, pc1, pc2 = p
 
     # shuffle to have channels as the first dim
     X_pad = X_pad.transpose(0, 3, 1, 2)
@@ -113,15 +121,23 @@ def im2col(X, W_shape, pad, stride):
     return X_col, p
 
 
-def col2im(X_col, X_shape, W_shape, pad, stride):
+def col2im(X_col, X_shape, W_shape, padding, stride):
     s = stride
+    pad = padding
+
+    if isinstance(pad, int):
+        pad = (pad, pad, pad, pad)
+
+    if isinstance(pad, tuple):
+        if len(pad) == 2:
+            pad = (pad[0], pad[0], pad[1], pad[1])
+
     pr1, pr2, pc1, pc2 = pad
     fr, fc, n_in, n_out = W_shape
     n_ex, in_rows, in_cols, n_in = X_shape
 
     X_pad = np.zeros((n_ex, n_in, in_rows + pr1 + pr2, in_cols + pc1 + pc2))
     k, i, j = _im2col_indices((n_ex, n_in, in_rows, in_cols), fr, fc, pad, s)
-
     X_col_reshaped = X_col.reshape(n_in * fr * fc, -1, n_ex)
     X_col_reshaped = X_col_reshaped.transpose(2, 0, 1)
 

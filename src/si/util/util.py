@@ -14,7 +14,9 @@ ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXZ'
 
 def label_gen(n):
     import itertools
-    """ Generates a list of n distinct labels similar to Excel"""
+    """ Generates a list of n distinct labels similar to the ones
+        on spreadsheets.
+    """
     def _iter_all_strings():
         size = 1
         while True:
