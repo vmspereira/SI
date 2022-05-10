@@ -19,6 +19,6 @@ The _tests_ folder are python tests for continuous integration.
 
 The _dataset_ folder contains some illustrative datasets.
 
-The _script_ folder contains some scripts to test yout code:
+The _script_ folder contains some scripts to test your code:
 
 `python scripts/dataset.py`
