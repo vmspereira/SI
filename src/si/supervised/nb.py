@@ -22,14 +22,21 @@ class NaiveBayes(Model):
         self.alpha = alpha
 
     def fit(self, dataset):
-        """Bayesian inference derives the posterior probability as a consequence of two antecedents
-        a prior probability and a "likelihood function" derived from a statistical model for the
+        """Bayesian inference calculates the posterior probability as a consequence of two antecedents
+        a prior probability and a "likelihood function" derived from a statistical model of
         observed data.
 
-        Bayes' theorem:
+        Bayes' theorem: (conditional probabilities)
 
-        P(y|x) = P(x|y) * P(y) / p(x)
+        P(y|x) = P(x|y) * P(y) / P(x)
         [posterior = likelihood * prior / evidence]
+
+        Recall:
+
+        P(X|Y) = P(X Y)/ P(Y)  <=>  P(X Y) = P(X|Y) P(Y)
+        P(Y|X) = P(X Y)/ P(X)  <=>  P(X Y) = P(Y|X) P(X)
+        
+        (it is assumed that X and Y are both possible and depedent) 
         """
         X, y = dataset.getXy()
         self.dataset = dataset

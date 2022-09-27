@@ -16,6 +16,7 @@ def label_gen(n):
     import itertools
     """ Generates a list of n distinct labels similar to the ones
         on spreadsheets.
+        Uses python yield for ease of computation.
     """
     def _iter_all_strings():
         size = 1
@@ -53,6 +54,9 @@ def l2_distance(x, y):
 
 
 def train_test_split(dataset, split=0.8):
+    """ Splits randomly a dataset into a train and test set.
+    
+    """
     from ..data import Dataset
     n = dataset.X.shape[0]
     m = int(split*n)
@@ -67,6 +71,10 @@ def train_test_split(dataset, split=0.8):
 
 
 def add_intersect(X):
+    """ Adds a vector of "1" in front of a matrix:
+    | a b |  to  |1 a b | 
+    | c d |      |1 c d |
+    """
     return np.hstack((np.ones((X.shape[0], 1)), X))
 
 

@@ -4,16 +4,21 @@
 
 ## Mestrado em Bioinformática, Universidade do Minho, 2021-2022.
 
-A library of machine learning algorithms to grasp essential concepts on a ML curriculum.
+A library of algorithms to grasp essential concepts on a Machine Learning curriculum.
+The code is commented with the mathematical fundations needed to understand the models.
+
 Only the basic modules and classes should be provided to students. 
 The aim it that they should build their own implementations of refence ML algorithms using a common API.
-The best way of learning something is to implement it.
+
+## Installation
 
 `git clone https://github.com/vmspereira/si.git`
 
 `cd si`
 
 `pip install -e .`
+
+## Folders organization
 
 The _src_ folder contains the base source over which you will implement you code.
 
@@ -23,8 +28,26 @@ The _dataset_ folder contains some illustrative datasets.
 
 The _script_ folder contains some notbooks to test your code.
 
-Please, refer to this github when used for any purpose.
+## ML Algorithms
 
-> I hear and I forget. I see and I remember. I do and I understand 
+Standard Scaler
+Variance Threshold
+Select K-best
 
-Confucius
+Principal Component Analysis
+K-means Clustering
+
+Linear regression
+Logistic regression
+Naive Bayesian
+Decision Tree
+k-Nearest Neighbors
+Neural Networks (Dense, Flatten, Conv2D, MaxPooling2D)
+
+Gread Search
+Voting Ensenble
+Cross Validation
+
+## Usage
+
+You may freely use this code as long as you refer to this github and its author.

@@ -29,10 +29,10 @@ class LogisticRegression(Model):
     def fit(self, dataset):
         X, y = dataset.getXy()
         X = add_intersect(X)
-        ##
+        
         self.X = X
         self.y = y
-        ##
+        
         self.train(X, y)
         self.is_fitted = True
 
