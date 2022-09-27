@@ -30,23 +30,24 @@ The _script_ folder contains some notbooks to test your code.
 
 ## ML Algorithms
 
-Standard Scaler
-Variance Threshold
-Select K-best
+- Standard Scaler
+- Variance Threshold
+- Select K-best
 
-Principal Component Analysis
-K-means Clustering
+- Principal Component Analysis
+- K-means Clustering
 
-Linear regression
-Logistic regression
-Naive Bayesian
-Decision Tree
-k-Nearest Neighbors
-Neural Networks (Dense, Flatten, Conv2D, MaxPooling2D)
+- Linear regression
+- Logistic regression
+- Naive Bayesian
+- Decision Tree
+- k-Nearest Neighbors
+- Neural Networks (Dense, Flatten, Conv2D, MaxPooling2D)
 
-Gread Search
-Voting Ensenble
-Cross Validation
+- Gread Search
+- Voting Ensenble
+- Cross Validation
+- Img2Col
 
 ## Usage
 
