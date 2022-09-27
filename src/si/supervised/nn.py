@@ -9,14 +9,54 @@
 
 import numpy as np
 from abc import ABC, abstractmethod
-from ..util import mse, mse_prime, minibatch
+from ..util import mse, mse_prime
 from .model import Model
 from ..util.im2col import pad2D, im2col, col2im
+
+class Layer(ABC):
+    def __init__(self):
+        """ Abstract class for layers. 
+        A layer is a funtion that takes an input and produces an output.
+        The function may have learnable parameters, such as weights. 
+        """
+        self.input = None
+        self.output = None
+
+    @abstractmethod
+    def forward(self, input):
+        """ Apply the layer 'function' to a given input
+        returning an output.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def backward(self, output_error, learning_rate):
+        """ The backward method allows to measure how each input or parameters
+            contributed to an error, such as, prediction errors. 
+     
+            This is achieved using derivatives: 
+            dE/dX tells us how much X contibuted to the error E.
+
+            Using the chain rule we can propagate errors across each layer or function:
+            
+            dE/dy = dE/dx * dx/dy
+            dE/dz = dE/dx * dx/dy * dy/dz
+            ...
+
+            Knowing the contribution of a parameter to the final error, we can adjust the
+            parameter. If w is a parameter whose contribution to the final error is dE_total/dw,
+            the value of w is adjusted to w = w - lr * dE_total/dw.
+            The learning rate (lr) controles the the learning speed... 
+            Note: learning too fast may lead to 'bad' learning, or not learning what you should. 
+        """
+        raise NotImplementedError
 
 
 class NN(Model):
     def __init__(self, epochs=1000, lr=0.1, verbose=True, batchsize=None):
-        """Neural Network model. The default loss function is MSE.
+        """Neural Network model. The default loss function is the mean square error (MSE).
+        A NN may be regarded as a sequence of layers, functions applied sequentialy one after the other.
+     
         :param int epochs: Number of epochs.
         :param float lr: The learning rate.
         """
@@ -31,11 +71,12 @@ class NN(Model):
         self.is_fitted = False
 
     def add(self, layer):
-        """Add a layer to the network"""
+        """Adds a layer to the network"""
         self.layers.append(layer)
 
     def useLoss(self, loss, loss_prime):
-        """Change the loss function.
+        """Changes the loss function.
+
         :param loss: The loss function.
         :param loss_prime: The derivative of the loss function.
         """
@@ -48,19 +89,21 @@ class NN(Model):
         self.history = dict()
         for epoch in range(self.epochs):
 
-            if not self.batchsize:
-                output = X
-                y_batch = y
-            else:
-                idx = minibatch(X, self.batchsize)
-                output = X[idx, :]
-                y_batch = y[idx, :]
-
+            output = X
+            y_batch = y
+        
             # forward propagation
+            # propagates values across all layers from
+            # the input to the final output.
+             
             for layer in self.layers:
                 output = layer.forward(output)
 
-            # backward propagation
+            # backward propagation (propagates errors)
+            # Computes the derivatives to see how much each
+            # parameter contributed to the total error and adjusts
+            # the parameter acording to a defined learning rate
+
             error = self.loss_prime(y_batch, output)
             for layer in reversed(self.layers):
                 error = layer.backward(error, self.lr)
@@ -68,6 +111,8 @@ class NN(Model):
             # calculate average error on all samples
             err = self.loss(y_batch, output)
             self.history[epoch] = err
+            
+            # verbosity
             if self.verbose:
                 print(f"epoch {epoch+1}/{self.epochs} error={err}")
             else:
@@ -90,24 +135,21 @@ class NN(Model):
         return self.loss(y, output)
 
 
-class Layer(ABC):
-    def __init__(self):
-        self.input = None
-        self.output = None
-
-    @abstractmethod
-    def forward(self, input):
-        raise NotImplementedError
-
-    @abstractmethod
-    def backward(self, output_error, learning_rate):
-        raise NotImplementedError
 
 
 class Dense(Layer):
     def __init__(self, input_size, output_size):
-        """Fully Connected layer"""
+        """Fully Connected layer
+        A dense layer is a set of linear functions wni * xni + ... + w0i * x0i + bi.
+        The w and b are learnable parameters, that are usualy randomly initialized.
+
+        :param input_size: the input size.
+        :param output_size: the output size.
+        """
+        # initialize weights from a 0 centered uniform distribution [-0.5, 0.5)
         self.weights = np.random.rand(input_size, output_size) - 0.5
+
+        # initialing biases with 1 usualy performs better than random
         self.bias = np.zeros((1, output_size))
 
     def forward(self, input_data):
@@ -116,16 +158,23 @@ class Dense(Layer):
         return self.output
 
     def backward(self, output_error, learning_rate):
-        """Computes dE/dW, dE/dB for a given output_error=dE/dY.
+        """ Here is where the magic happens!
+
+        Computes the dE/dW, dE/dB for a given output_error=dE/dY.
+        
         Returns input_error=dE/dX to feed the previous layer.
         """
-        # compute the weight dE/dW = X.T * dE/dY
+        # computes the weight error: dE/dW = X.T * dE/dY
         weights_error = np.dot(self.input.T, output_error)
-        # compute the bias error dE/dB = dE/dY
+        
+        # computes the bias error: dE/dB = dE/dY
         bias_error = np.sum(output_error, axis=0)
-        # error dE/dX to pass on to the previous layer
+        
+        # computers the layer input error (the output error from the previous layer), 
+        # dE/dX, to pass on to the previous layer
         input_error = np.dot(output_error, self.weights.T)
-        # update parameters
+        
+        # updates the parameters accordind to a defined learning rate
         self.weights -= learning_rate * weights_error
         self.bias -= learning_rate * bias_error
         return input_error
@@ -134,20 +183,33 @@ class Dense(Layer):
         return "Dense"
 
     def setWeights(self, weights, bias):
+        """ Sets the weights and bias of the 
+        layer.
+
+        :params weights: A numpy array of weight values
+        :params bias: A numpy array of bias values
+        """
         self.weights = weights
         self.bias = bias
 
 
 class Activation(Layer):
+    
     def __init__(self, activation):
         """Activation layer.
+        Activation "layers" allow NN to learn non linear functions, as would be the
+        case if only dense layers were used. 
+
         :param activation: An instance of si.util.activation.ActivationBase.
         """
         self.activation = activation
 
     def forward(self, input_data):
         self.input = input_data
+
+        # apply the activation function to the input
         self.output = self.activation(self.input)
+        
         return self.output
 
     def backward(self, output_error, learning_rate):
@@ -160,6 +222,7 @@ class Activation(Layer):
 
 
 class Flatten(Layer):
+
     def forward(self, input):
         self.input_shape = input.shape
         # flattens all but the 1st dimention

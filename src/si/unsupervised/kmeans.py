@@ -12,7 +12,13 @@ from ..util import l2_distance
 
 class KMeans:
 
-    def __init__(self, k: int, max_iterations=1000, distance=l2_distance) -> None:
+    def __init__(self, k: int, max_iterations: int=1000, distance=l2_distance) -> None:
+        """ KMeans algorithm.
+        :param (int) k: number of clusters
+        :param (int) max_iterations: Maximum number of iterations to run if the\
+            algorithm does not converge. Default 1000
+        :param (callable) distance: Distance function. Default euclidean distance.
+        """
         self.k = k
         self.max_iterations = max_iterations
         self.centroids = None
@@ -26,13 +32,14 @@ class KMeans:
     def init_centroids(self, dataset):
         """Generates k centroids.
         There are many ways to achieve that...
-
+        Here, the centroids are points randomly selected 
+        from the dataset.
         :param dataset: The dataset object
         """
         X = dataset.X
         rng = np.random.default_rng()
-        centroids = rng.choice(X, self.k)
-        return centroids
+        self.centroids = rng.choice(X, self.k)
+        return self.centroids
 
     def get_closest_centroid(self, x):
         """Identifies the index of the centroid closest to point x.

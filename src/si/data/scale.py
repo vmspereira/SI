@@ -8,9 +8,9 @@
 # ---------------------------------------------------------------------------
 import numpy as np
 from copy import copy
+from .transformer import Transformer
 
-
-class StandardScaler:
+class StandardScaler(Transformer):
     """
     Standardize features by centering the mean to 0 and unit variance.
     The standard score of an instance is calculated by:
@@ -63,20 +63,7 @@ class StandardScaler:
                            copy(dataset._xnames),
                            copy(dataset._yname))
 
-    def fit_transform(self, dataset, inline=False):
-        """
-        Calculate and store the mean and variance of each feature and
-        standardize the data.
-        Parameters
-        ----------
-        dataset : A Dataset object to be standardized
-        Returns
-        -------
-        A Dataset object to with standardized data.
-        """
-        self.fit(dataset)
-        return self.transform(dataset, inline=inline)
-
+    
     def inverse_transform(self, dataset, inline=False):
         """
         Transform data back into orginal state by multiplying by standard

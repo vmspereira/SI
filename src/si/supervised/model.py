@@ -14,7 +14,10 @@ class Model(ABC):
 
     def __init__(self):
         """ Abstract class defining an interface for
-        supervised learning models."""
+        supervised learning models.
+
+        A model needs to implement a `fit`, a `predict` and a `cost`  method.
+        """
         self.is_fitted = False
 
     @abstractmethod

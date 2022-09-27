@@ -6,13 +6,14 @@
 # ---------------------------------------------------------------------------
 """Feature Selection module"""
 # ---------------------------------------------------------------------------
+from .transformer import Transformer
 import numpy as np
 from scipy import stats
 from copy import copy
 import warnings
 
 
-class VarianceThreshold:
+class VarianceThreshold(Transformer):
 
     def __init__(self, threshold=0):
         """The variance threshold is a simple baseline approach to feature selection.
@@ -47,10 +48,6 @@ class VarianceThreshold:
                            xnames,
                            copy(dataset._yname)
                            )
-
-    def fit_transform(self, dataset, inline=False):
-        self.fit(dataset)
-        return self.transform(dataset, inline=inline)
 
 
 def f_classif(dataset):
@@ -92,7 +89,7 @@ def f_regress(dataset):
     return F, p
 
 
-class SelectKBest:
+class SelectKBest(Transformer):
 
     def __init__(self, k: int, score_func=f_classif):
         """[summary]
@@ -128,7 +125,3 @@ class SelectKBest:
                            xnames,
                            copy(dataset._yname)
                            )
-
-    def fit_transform(self, dataset, inline=False):
-        self.fit(dataset)
-        return self.transform(dataset, inline=inline)

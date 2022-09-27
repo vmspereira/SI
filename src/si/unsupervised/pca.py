@@ -12,7 +12,14 @@ from ..data import StandardScaler
 
 class PCA:
 
-    def __init__(self, n_components=2, svd=True, scale=True) -> None:
+    def __init__(self, n_components:int=2, svd:bool=True, scale:bool=True) -> None:
+        """ Principal component analysis.
+        :param (int) n_components: Number of components
+        :param (bool) svd: Uses SVD decomposition to obtain the eigen values/vector.\
+             If False, uses GEEV right eigen vector on the covariance matrix.
+        :param (bool) scale: If True uses standard scaler to center and normalize the data,\
+             otherwise, only centers the data values.   
+        """
         self.n_components = n_components
         self.svd = svd
         self.scale = scale
@@ -23,7 +30,7 @@ class PCA:
             X_scale = StandardScaler().fit_transform(dataset)
             self.X_center = X_scale.X
         else:
-            # may use the center instead of std scaler
+            # may only use the center instead of std scaler
             self.X_center = X - np.mean(X, axis=0)
 
         if self.svd:
