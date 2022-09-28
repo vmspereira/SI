@@ -1,14 +1,11 @@
 ![CI-CD](https://github.com/vmspereira/si/actions/workflows/main.yaml/badge.svg)
+[![DOI](https://zenodo.org/badge/415842359.svg)](https://zenodo.org/badge/latestdoi/415842359)
 
-# Sistemas Inteligentes para Bioinformática
-
-## Mestrado em Bioinformática, Universidade do Minho, 2021-2022.
+# Intelligent Systems for Bioinformatics / Sistemas Inteligentes para Bioinformática
 
 A library of algorithms to grasp essential concepts on a Machine Learning curriculum.
-The code is commented with the mathematical fundations needed to understand the models.
-
-Only the basic modules and classes should be provided to students. 
-The aim it that they should build their own implementations of refence ML algorithms using a common API.
+The code is commented with the mathematical fundations needed to understand how the algoritms and models work.
+The first version of this repository was used as teaching tool in the Bioinformatics master at Universidade do Minho in 2021.
 
 ## Installation
 
