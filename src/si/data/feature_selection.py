@@ -16,9 +16,10 @@ import warnings
 class VarianceThreshold(Transformer):
 
     def __init__(self, threshold=0):
-        """The variance threshold is a simple baseline approach to feature selection.
-           It removes all features which variance doesn't meet some threshold. By default,
-           it removes all zero-variance features, i.e., features that have the same value in all samples.
+        """
+        The variance threshold is a simple baseline approach to feature selection.
+        It removes all features whose variance doesn't meet some threshold. By default,
+        it removes all zero-variance features, i.e., features that have the same value in all samples.
 
         :param threshold: The non negative threshold value, defaults to 0.
         :type threshold: int, optional
@@ -52,8 +53,15 @@ class VarianceThreshold(Transformer):
 
 def f_classif(dataset):
     """Scoring function for classifications.
+
     Compute the ANOVA F-value for the provided sample.
 
+    We want to identify which groups have means 
+    significantly different.
+
+    The null hypotesis, H0, it that the means
+    is the same for all groups, ie, the factors
+    or features do not significantly affect the labels.
 
     :param dataset: A labeled dataset
     :type dataset: Dataset
@@ -62,17 +70,21 @@ def f_classif(dataset):
     """
     X = dataset.X
     y = dataset.y
-    # selectiona os registos por class
+    # Groups the data entries by lable class
     args = [X[y == a] for a in np.unique(y)]
-    # Calcula as F-statistics e p values.
-    # Queremos identificar se existe uma differença significativa
-    # entre os tratamentos (features)
+    # Computes the F-statistics and p values.
     F, p = stats.f_oneway(*args)
     return F, p
 
 
 def f_regress(dataset):
     """Scoring function for regressions
+    
+    F-test for regression
+
+    The null hypotesis, in this case,
+    is that all coefficientes are zero, in other words,
+    the model does not have predictive capabilities.
 
     :param dataset: A labeled dataset
     :type dataset: Dataset
@@ -92,12 +104,23 @@ def f_regress(dataset):
 class SelectKBest(Transformer):
 
     def __init__(self, k: int, score_func=f_classif):
-        """[summary]
+        """The SelectKBest method selects the features according to the k highest scores
+        computed using a scoring function. 
 
-        :param k: [description]
+        :param k: Number of feature with best score to be selected
         :type k: int
-        :param score_func: [description], defaults to f_classif
-        :type score_func: [type], optional
+        :param score_func: The scoring function, defaults to f_classif
+        :type score_func: callable, optional
+
+        -------------------------------------------------------------------------
+        In this implementation we will consider the two F-statistics functions, 
+        one for regression (f_regress) and the other for classification tasks (f_classif).
+
+        The p and F values have an inverse relationship, the greater
+        the F value the lesser the p.
+        Larger values of F correspond to a rejection with probability
+        (1-p) of the null hypothesis, meaning that the corresponding 
+        features has an effect on the predictions.
         """
         self.k = k
         self.score_func = score_func
@@ -106,10 +129,7 @@ class SelectKBest(Transformer):
         self.F, self.p = self.score_func(dataset)
 
     def transform(self, dataset, inline=False):
-        # Nota que os p e F têm uma relação inversa, qto maior
-        # o valor de F menor o p.
-        # Maiores valores de F correspondem a uma rejeição com probabilidade
-        # (1-p) da hipótese nula.
+        # identify the k features with higher F values. 
         idxs = self.F.argsort()[-self.k:]
         idxs.sort()
         X_trans = dataset.X[:, idxs.tolist()]

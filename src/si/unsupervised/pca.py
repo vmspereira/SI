@@ -18,23 +18,44 @@ class PCA:
         :param (bool) svd: Uses SVD decomposition to obtain the eigen values/vector.\
              If False, uses GEEV right eigen vector on the covariance matrix.
         :param (bool) scale: If True uses standard scaler to center and normalize the data,\
-             otherwise, only centers the data values.   
+             otherwise, only centers the data values.
+
+        --------------------------
+        The principal components are computed using eigen vectores (x) and values (λ), solutions
+        of the equation:
+          A x =  λ x
+        where A is the data covariance matrix.
+
+        The covariance matrix A tells how much the variables differ from one another, 
+        and we want to preserve the directions along which there is more variability.
+        These directions are the eigen vectores (x) with higher eigen values (λ).
+        The eigen values are a measure of how spread is the data along the corresponding
+        eigen vector. 
         """
         self.n_components = n_components
         self.svd = svd
         self.scale = scale
 
-    def fit(self, dataset):
+    def scale(self, dataset):
         X = dataset.X
         if self.scale:
             X_scale = StandardScaler().fit_transform(dataset)
-            self.X_center = X_scale.X
+            X_center = X_scale.X
         else:
-            # may only use the center instead of std scaler
-            self.X_center = X - np.mean(X, axis=0)
+            # Centers only instead of std scaler
+            X_center = X - np.mean(X, axis=0)
+        return X_center
 
+
+    def fit(self, dataset):
+        """Computes the eigen values an vectors"""
+        self.X_center = self.scale(dataset)
         if self.svd:
             # uses SVD
+            # SVD factorizes a matric into a product of 3 other matrices:
+            # A = U S V*, where U and V are ortogonal and S is diagonal.
+            # U is a matrix of eigen vectores, while the diagonal of S are
+            # eigen values.
             self.e_vecs, self.e_vals, vt = np.linalg.svd(self.X_center.T)
         else:
             # uses GEEV right eigen vector on the covariance matrix
@@ -42,11 +63,19 @@ class PCA:
             self.e_vals, self.e_vecs = np.linalg.eig(cov_matrix)
 
     def transform(self, dataset):
+        """
+        The principal components, eigen vectors,
+        are used to build a transition matrix from an higher
+        to a lower dimension
+        """ 
+        X_center = self.scale(dataset) 
         self.sorted_index = np.argsort(self.e_vals)[::-1]
         self.e_vals_sorted = self.e_vals[self.sorted_index]
         self.e_vecs_sorted = self.e_vecs[:, self.sorted_index]
+        # transition matrix, or change of base 
         self.e_vecs_subset = self.e_vecs_sorted[:, 0:self.n_components]
-        X_reduced = self.e_vecs_subset.T.dot(self.X_center.T).T
+        # projects the data into a lower dimension
+        X_reduced = self.e_vecs_subset.T.dot(X_center.T).T
         return X_reduced
 
     def fit_transform(self, dataset):

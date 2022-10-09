@@ -52,7 +52,7 @@ class LinearRegression(Model):
             real values Y, that is, we want to find W values that minimize the 
             distante between XW and Y, ie, minimize the MSE 1/2 (XW-Y)^2.
             
-            In closed form mathematics, minimizing (maximizing) a diferentiable function
+            In closed form mathematics, minimizing (maximizing) a differentiable function
             is to determine the zero of its derivative... so let us derive:
             
                     grad_W (1/2 (X W - Y)^2)                
@@ -134,7 +134,7 @@ class LinearRegressionReg(LinearRegression):
         tries to achieve the generalization of the model by 
         pushing the weights toward zero and discouraging complex models.
         
-        In this implementation, we use L2 
+        In this implementation, we use L2 regularization 
         
         :param bool gd: If True uses gradient descent (GD) to train the model\
             otherwise closed form lineal algebra. Default False.
@@ -150,7 +150,7 @@ class LinearRegressionReg(LinearRegression):
 
             theta = inv(XT*X+lbd*I)*XT*y
         
-        The diference to the LR closed for is the inclusion of the matrix 
+        The difference to the LR closed for is the inclusion of the matrix 
        
                | 0 0 0 ... 0 |
                | 0 1 0 ... 0 |

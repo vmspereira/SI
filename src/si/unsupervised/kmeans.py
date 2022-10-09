@@ -18,6 +18,11 @@ class KMeans:
         :param (int) max_iterations: Maximum number of iterations to run if the\
             algorithm does not converge. Default 1000
         :param (callable) distance: Distance function. Default euclidean distance.
+
+        -----------------------------
+        K-means groups object acording to their similarity.
+        K-means is non-deterministic and depends on the choice of the initial
+        centroids, that is, the 'centers' of the initial clusters.
         """
         self.k = k
         self.max_iterations = max_iterations
