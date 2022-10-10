@@ -1,6 +1,6 @@
 ![CI-CD](https://github.com/vmspereira/si/actions/workflows/main.yaml/badge.svg)
 [![DOI](https://zenodo.org/badge/415842359.svg)](https://zenodo.org/badge/latestdoi/415842359)
-[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![CC BY 4.0][cc-by-shield]][cc-by]
 
 # Intelligent Systems for Bioinformatics / Sistemas Inteligentes para Bioinformática
 
@@ -51,6 +51,6 @@ The _script_ folder contains some notebooks to test your code.
 - Cross Validation
 - Img2Col
 
-## Terms of usage
-
-You may freely use this code provided that you refer to this github and its author.
+## License
+This work is licensed under a
+[Creative Commons Attribution 4.0 International License][cc-by].
