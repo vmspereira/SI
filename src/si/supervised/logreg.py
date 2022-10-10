@@ -13,7 +13,7 @@ import numpy as np
 
 class LogisticRegression(Model):
 
-    def __init__(self, epochs=10000, lr=0.1):
+    def __init__(self, epochs:int=10000, lr:float=0.1):
         """ Logistic regression model.
 
         :param bool gd: If True uses gradient descent (GD) to train the model\
@@ -70,7 +70,7 @@ class LogisticRegression(Model):
 
 class LogisticRegressionReg(LogisticRegression):
 
-    def __init__(self, epochs=1000, lr=0.1, lbd=1):
+    def __init__(self, epochs:int=1000, lr:float=0.1, lbd:float=1):
         """ Linear regression model with L2 regularization.
 
         :param bool gd: If True uses gradient descent (GD) to train the model\

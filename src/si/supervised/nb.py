@@ -36,7 +36,7 @@ class NaiveBayes(Model):
         P(X|Y) = P(X Y)/ P(Y)  <=>  P(X Y) = P(X|Y) P(Y)
         P(Y|X) = P(X Y)/ P(X)  <=>  P(X Y) = P(Y|X) P(X)
         
-        (it is assumed that X and Y are both possible and depedent) 
+        (it is assumed that X and Y are both possible and dependent) 
         """
         X, y = dataset.getXy()
         self.dataset = dataset
