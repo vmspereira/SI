@@ -19,11 +19,7 @@ def accuracy_score(y_true, y_pred):
     :param numpy.array y_pred: array-like of shape (n_samples,) Estimated target values.
     :returns: C (float) Accuracy score.
     """
-    correct = 0
-    for true, pred in zip(y_true, y_pred):
-        if true == pred:
-            correct += 1
-    accuracy = correct / len(y_true)
+    accuracy = (y_true, y_pred).sum() / len(y_true)
     return accuracy
 
 

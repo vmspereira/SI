@@ -16,7 +16,7 @@ class Model(ABC):
         """ Abstract class defining an interface for
         supervised learning models.
 
-        A model needs to implement a `fit`, a `predict` and a `cost`  method.
+        A model needs to implement a `fit`, a `predict` and a `cost` method.
         """
         self.is_fitted = False
 

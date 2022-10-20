@@ -13,18 +13,23 @@ import numpy as np
 
 class LogisticRegression(Model):
 
-    def __init__(self, epochs:int=10000, lr:float=0.1):
+    def __init__(self,
+                 epochs:int=10000,
+                 lr:float=0.1,
+                 threshold:float=0.5):
         """ Logistic regression model.
 
-        :param bool gd: If True uses gradient descent (GD) to train the model\
-            otherwise closed form lineal algebra. Default False.
+        :param bool gd: If True uses gradient descent (GD) to train the model
+            otherwise uses closed form linear algebra. Default False.
         :param int epochs: Number of epochs for GD.
-        :param float lr: Learning rate for GD.
+        :param float lr: Learning rate for GD. Default 0.1
+        :param threshold: The decision threshold, a value in (0,1). Default 0.5
         """
         super(LogisticRegression, self).__init__()
         self.theta = None
         self.epochs = epochs
         self.lr = lr
+        self.threshold=threshold
 
     def fit(self, dataset):
         X, y = dataset.getXy()
@@ -54,7 +59,7 @@ class LogisticRegression(Model):
 
     def predict(self, x):
         p = self.probability(x)
-        res = 1 if p >= 0.5 else 0
+        res = 1 if p >= self.threshold else 0
         return res
 
     def cost(self, X=None, y=None, theta=None):
@@ -70,7 +75,11 @@ class LogisticRegression(Model):
 
 class LogisticRegressionReg(LogisticRegression):
 
-    def __init__(self, epochs:int=1000, lr:float=0.1, lbd:float=1):
+    def __init__(self,
+                 epochs:int=1000,
+                 lr:float=0.1,
+                 lbd:float=1,
+                 threshold:float=0.5):
         """ Linear regression model with L2 regularization.
 
         :param bool gd: If True uses gradient descent (GD) to train the model\
@@ -79,7 +88,7 @@ class LogisticRegressionReg(LogisticRegression):
         :param float lr: Learning rate for GD.
         :param float ldb: lambda for the regularization.
         """
-        super(LogisticRegressionReg, self).__init__(epochs=epochs, lr=lr)
+        super(LogisticRegressionReg, self).__init__(epochs=epochs, lr=lr, threshold=threshold)
         self.lbd = lbd
 
     def train(self, X, y):

@@ -7,16 +7,21 @@
 """Utility module"""
 # ---------------------------------------------------------------------------
 import numpy as np
+import pandas as pd
 
 # Y is reserved to idenfify dependent variables
 ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXZ'
 
 
-def label_gen(n):
+def label_gen(n:int):
     import itertools
-    """ Generates a list of n distinct labels similar to the ones
-        on spreadsheets.
-        Uses python yield for ease of computation.
+    """ 
+    Generates a list of n distinct labels similar to the ones
+    on spreadsheets.
+    Uses python yield for ease of computation.
+
+    :param (int) n: Number of labels
+    :returns: A list of labels
     """
     def _iter_all_strings():
         size = 1
@@ -35,7 +40,8 @@ def label_gen(n):
 
 
 def l1_distance(x, y):
-    """Computes the manhatan distance of a point (x) to a set of
+    """
+    Computes the manhatan distance of a point (x) to a set of
     points y.
     x.shape=(n,) and y.shape=(m,n)
     """
@@ -43,19 +49,25 @@ def l1_distance(x, y):
     dist = (np.absolute(x - y)).sum(axis=1)
     return dist
 
-
 def l2_distance(x, y):
-    """Computes the euclidean distance of a point (x) to a set of
+    """
+    Computes the euclidean distance of a point (x) to a set of
     points y.
     x.shape=(n,) and y.shape=(m,n)
+
+    :param x: a numpy.array
+    :param y: a numpy.array
+    :returns: a numpy.array of distances
     """
     dist = ((x - y) ** 2).sum(axis=1)
     return dist
 
+def train_test_split(dataset, split:float=0.8):
+    """
+    Splits randomly a dataset into a train and test set.
 
-def train_test_split(dataset, split=0.8):
-    """ Splits randomly a dataset into a train and test set.
-    
+    :param dataset: The dataset to be splited.
+    :param split: The percentage of samples to be used for training.
     """
     from ..data import Dataset
     n = dataset.X.shape[0]
@@ -69,18 +81,24 @@ def train_test_split(dataset, split=0.8):
     test = Dataset(dataset.X[test_mask], dataset.y[test_mask], dataset._xnames, dataset._yname)
     return train, test
 
-
 def add_intersect(X):
-    """ Adds a vector of "1" in front of a matrix:
+    """ 
+    Adds a vector of "1" in front of a matrix:
+
     | a b |  to  |1 a b | 
     | c d |      |1 c d |
+    :param X: numpy.array
+    :returns: numpy.array
     """
     return np.hstack((np.ones((X.shape[0], 1)), X))
 
-
 def sigmoid(z):
+    """
+    Sigmoid function
+    :param z: a numpy.array
+    :returns: a numpy array
+    """
     return 1 / (1 + np.exp(-z))
-
 
 def to_categorical(y, num_classes=None, dtype='float32'):
     y = np.array(y, dtype='int')
@@ -97,7 +115,6 @@ def to_categorical(y, num_classes=None, dtype='float32'):
     categorical = np.reshape(categorical, output_shape)
     return categorical
 
-
 def minibatch(X, batchsize=256, shuffle=True):
     N = X.shape[0]
     ix = np.arange(N)
@@ -111,3 +128,15 @@ def minibatch(X, batchsize=256, shuffle=True):
             yield ix[i * batchsize: (i + 1) * batchsize]
 
     return mb_generator(),
+
+def confusion_matrix(true_y, predict_y, format ='df'):
+    """
+    Computes a confusion matrix
+    """
+    cm = pd.crosstab(true_y, predict_y, 
+                     rownames = ["True values"], 
+                     colnames = ["Predicted values"])
+    if format=='df':
+        return pd.DataFrame(cm)
+    else:
+        return cm

@@ -15,29 +15,40 @@ import numpy as np
 class NaiveBayes(Model):
 
     def __init__(self, alpha=1.0):
-        super(NaiveBayes).__init__()
-        self.prior = None
-        self.lk = None
-        # alpha is an additive term used to ensure no null likelihood
-        self.alpha = alpha
-
-    def fit(self, dataset):
-        """Bayesian inference calculates the posterior probability as a consequence of two antecedents
+        """
+        Naive Bayesian for categorical data.
+        Bayesian inference calculates the posterior probability as a consequence of two antecedents
         a prior probability and a "likelihood function" derived from a statistical model of
         observed data.
 
+        :param float alpha: an additive term used to ensure no null likelihood. Default 1.0.
+
+        ---------------------------------------------------------------
         Bayes' theorem: (conditional probabilities)
 
-        P(y|x) = P(x|y) * P(y) / P(x)
+        P(Y|X) = P(X|Y) * P(Y) / P(X)
         [posterior = likelihood * prior / evidence]
 
-        Recall:
-
-        P(X|Y) = P(X Y)/ P(Y)  <=>  P(X Y) = P(X|Y) P(Y)
-        P(Y|X) = P(X Y)/ P(X)  <=>  P(X Y) = P(Y|X) P(X)
+        For given a set of feature values X=x1,x2,...,xn we want to know the probability
+        of each class y. It is assumed that X and Y are both possible and dependent (the 
+        class values depend on the features), while a strong (naive) independence is 
+        assumed between the features, that is,
         
-        (it is assumed that X and Y are both possible and dependent) 
+            P(X= x1,x2,...,xn) = P(X=x1) P(X=x2) ... P(X=xn)
+        
+        and
+    
+            P(X= x1,x2,...,xn|Y=y) = P(X=x1|Y=y) P(X=x2|Y=y) ... P(X=xn|Y=y)
+
+        This enables calculating the likelihoods and evidences.
+
         """
+        super(NaiveBayes).__init__()
+        self.prior = None
+        self.lk = None
+        self.alpha = alpha
+
+    def fit(self, dataset):
         X, y = dataset.getXy()
         self.dataset = dataset
         n = X.shape[0]

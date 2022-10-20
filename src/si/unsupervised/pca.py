@@ -72,9 +72,9 @@ class PCA:
         self.sorted_index = np.argsort(self.e_vals)[::-1]
         self.e_vals_sorted = self.e_vals[self.sorted_index]
         self.e_vecs_sorted = self.e_vecs[:, self.sorted_index]
-        # transition matrix, or change of base 
+        # transition matrix, or change of base matrix. 
         self.e_vecs_subset = self.e_vecs_sorted[:, 0:self.n_components]
-        # projects the data into a lower dimension
+        # projects the data into a lower dimension.
         X_reduced = self.e_vecs_subset.T.dot(X_center.T).T
         return X_reduced
 

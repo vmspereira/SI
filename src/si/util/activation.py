@@ -12,7 +12,7 @@ from abc import ABC, abstractmethod
 
 
 class ActivationBase(ABC):
-    def __init__(self, **kwargs):
+    def __init__(self):
         """Initialize the ActivationBase object"""
         super().__init__()
 

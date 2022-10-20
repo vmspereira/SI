@@ -9,9 +9,9 @@
 
 import numpy as np
 from abc import ABC, abstractmethod
-from ..util import mse, mse_prime
 from .model import Model
-from ..util.im2col import pad2D, im2col, col2im
+from si.util import mse, mse_prime
+from si.util.im2col import pad2D, im2col, col2im
 
 class Layer(ABC):
     def __init__(self):

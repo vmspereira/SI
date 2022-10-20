@@ -12,7 +12,11 @@ from ..util import l2_distance
 
 class KMeans:
 
-    def __init__(self, k: int, max_iterations: int=1000, distance=l2_distance) -> None:
+    def __init__(self, 
+                 k: int, 
+                 max_iterations: int=1000, 
+                 distance:callable=l2_distance
+                 ) -> None:
         """ KMeans algorithm.
         :param (int) k: number of clusters
         :param (int) max_iterations: Maximum number of iterations to run if the\
@@ -20,9 +24,13 @@ class KMeans:
         :param (callable) distance: Distance function. Default euclidean distance.
 
         -----------------------------
-        K-means groups object acording to their similarity.
+        K-means groups object acording to their similarity by minimize the intra-class 
+        variance.
         K-means is non-deterministic and depends on the choice of the initial
-        centroids, that is, the 'centers' of the initial clusters.
+        centroids (seeds), the 'centers' of the initial clusters. There are 
+        some approach such as kmean++ where the initial centroids are selected using a
+        weighted probability distribution proportional to the square of distances to 
+        the nearest random seeds.
         """
         self.k = k
         self.max_iterations = max_iterations
@@ -39,6 +47,7 @@ class KMeans:
         There are many ways to achieve that...
         Here, the centroids are points randomly selected 
         from the dataset.
+        
         :param dataset: The dataset object
         """
         X = dataset.X
@@ -47,7 +56,9 @@ class KMeans:
         return self.centroids
 
     def get_closest_centroid(self, x):
-        """Identifies the index of the centroid closest to point x.
+        """
+        Identifies the index of the centroid closest to point x.
+        
         :param x: a point (numpy.array)
         """
         dist = self.distance(x, self.centroids)
@@ -73,7 +84,7 @@ class KMeans:
             cent = [np.mean(X[idxs == i], axis=0) for i in range(self.k)]
             self.centroids = np.array(cent)
             # verify if the clustering has changed
-            # and increment counting
+            # and increment the counter
             changed = np.any(old_idxs != idxs)
             old_idxs = idxs
             count += 1

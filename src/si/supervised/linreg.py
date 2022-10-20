@@ -7,7 +7,7 @@
 """Linear Regression module"""
 # ---------------------------------------------------------------------------
 from .model import Model
-from ..util import mse, add_intersect
+from si.util import mse, add_intersect
 import numpy as np
 
 
@@ -182,5 +182,5 @@ class LinearRegressionReg(LinearRegression):
 
         for epoch in range(self.epochs):
             grad = (X.dot(self.theta)-y).dot(X)
-            self.theta -= (self.lr/m) * (lbds+grad)
+            self.theta -= (self.lr/m) * (lbds*self.theta+grad)
             self.history[epoch] = [self.theta.copy(), self.cost()]

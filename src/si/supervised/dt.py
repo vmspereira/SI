@@ -20,7 +20,8 @@ class Node:
         # derived from splitting criteria
         self.column = None
         self.threshold = None
-        # probability for object inside the Node to belong for each of the given classes
+        # probability for object inside the Node to belong 
+        # for each of the given classes
         self.probas = None
         # depth of the given node
         self.depth = None
@@ -38,10 +39,10 @@ class DecisionTree(Model):
         # Decision tree itself
         self.Tree = None
 
-    def nodeProbas(self, y):
-        '''
+    def node_probs(self, y):
+        """
         Calculates probability of class in a given node
-        '''
+        """
         probas = []
         # for each unique label calculate the probability for it
         for one_class in self.classes:
@@ -50,23 +51,24 @@ class DecisionTree(Model):
         return np.asarray(probas)
 
     def gini(self, probas):
-        '''Calculates gini criterion'''
+        """Calculates gini criterion"""
         return 1 - np.sum(probas**2)
 
-    def calcImpurity(self, y):
-        '''Wrapper for the impurity calculation. Calculates probas first and then passses them
+    def calc_impurity(self, y):
+        '''Wrapper for the impurity calculation. Calculates probas 
+           first and then passses them
         to the Gini criterion.
         '''
         return self.gini(self.nodeProbas(y))
 
-    def calcBestSplit(self, X, y):
+    def calc_best_split(self, X, y):
         '''Calculates the best possible split for the concrete node of the tree'''
 
         bestSplitCol = None
         bestThresh = None
         bestInfoGain = -999
 
-        impurityBefore = self.calcImpurity(y)
+        impurityBefore = self.calc_impurity(y)
 
         # for each column in X
         for col in range(X.shape[1]):
@@ -82,8 +84,8 @@ class DecisionTree(Model):
                     continue
 
                 # calculate impurity for the right and left nodes
-                impurityRight = self.calcImpurity(y_right)
-                impurityLeft = self.calcImpurity(y_left)
+                impurityRight = self.calc_impurity(y_right)
+                impurityLeft = self.calc_impurity(y_left)
 
                 # calculate information gain
                 infoGain = impurityBefore
@@ -108,7 +110,7 @@ class DecisionTree(Model):
 
         return bestSplitCol, bestThresh, x_left, y_left, x_right, y_right
 
-    def buildDT(self, X, y, node):
+    def build_dt(self, X, y, node):
         '''
         Recursively builds decision tree from the top to bottom
         '''
@@ -126,7 +128,7 @@ class DecisionTree(Model):
             return
 
         # calculating current split
-        splitCol, thresh, x_left, y_left, x_right, y_right = self.calcBestSplit(X, y)
+        splitCol, thresh, x_left, y_left, x_right, y_right = self.calc_best_split(X, y)
 
         if splitCol is None:
             node.is_terminal = True
@@ -141,11 +143,11 @@ class DecisionTree(Model):
         # creating left and right child nodes
         node.left = Node()
         node.left.depth = node.depth + 1
-        node.left.probas = self.nodeProbas(y_left)
+        node.left.probas = self.node_probs(y_left)
 
         node.right = Node()
         node.right.depth = node.depth + 1
-        node.right.probas = self.nodeProbas(y_right)
+        node.right.probas = self.node_probs(y_right)
 
         # splitting recursevely
         self.buildDT(x_right, y_right, node.right)
@@ -160,12 +162,13 @@ class DecisionTree(Model):
         self.Tree = Node()
         self.Tree.depth = 1
         self.Tree.probas = self.nodeProbas(y)
-        self.buildDT(X, y, self.Tree)
+        self.build_dt(X, y, self.Tree)
         self.is_fitted = True
 
-    def predictSample(self, x, node):
+    def predict_sample(self, x, node):
         '''
-        Passes one object through decision tree and return the probability of it to belong to each class
+        Passes one object through decision tree and return the probability of 
+        it to belong to each class
         '''
         assert self.is_fitted, 'Model must be fit before predicting'
         # if we have reached the terminal node of the tree
@@ -173,14 +176,14 @@ class DecisionTree(Model):
             return node.probas
 
         if x[node.column] > node.threshold:
-            probas = self.predictSample(x, node.right)
+            probas = self.predict_sample(x, node.right)
         else:
-            probas = self.predictSample(x, node.left)
+            probas = self.predict_sample(x, node.left)
         return probas
 
     def predict(self, x):
         assert self.is_fitted, 'Model must be fit before predicting'
-        pred = np.argmax(self.predictSample(x, self.Tree))
+        pred = np.argmax(self.predict_sample(x, self.Tree))
         return pred
 
     def cost(self, X=None, y=None):

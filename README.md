@@ -51,7 +51,7 @@ The _script_ folder contains some notebooks to test your code.
 - k-Nearest Neighbors
 - Neural Networks (Dense, Flatten, Conv2D, MaxPooling2D)
 
-- Gread Search
+- Grid Search
 - Voting Ensemble
 - Cross Validation
 - Img2Col

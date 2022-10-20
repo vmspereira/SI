@@ -12,7 +12,12 @@ import numpy as np
 
 
 class KNN(Model):
-    def __init__(self, num_neighbors, classification=True):
+    def __init__(self, num_neighbors:int, classification:bool=True):
+        """
+        k-nearest neighbors algorithm.
+
+
+        """
         super(KNN).__init__()
         self.num_neighbors = num_neighbors
         self.classification = classification
