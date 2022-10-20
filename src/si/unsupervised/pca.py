@@ -31,6 +31,21 @@ class PCA:
         These directions are the eigen vectores (x) with higher eigen values (λ).
         The eigen values are a measure of how spread is the data along the corresponding
         eigen vector. 
+
+        PCA has some assumptions: 
+            - There must be linearity in the data set, i.e.,
+              the variables combine in a linear manner to form the dataset. 
+        
+            - The variables exhibit relationships among themselves.
+
+        Some rule of thunb:
+
+            - The number of observations should be at least 150 with a ratio measurement
+              of 5:1.
+
+            - Extreme values that deviate from other data points in any dataset, outliers, 
+              should be preferebly removed. Usually values outside the (mean ± 3*std) are 
+              considered outliers.    
         """
         self.n_components = n_components
         self.svd = svd
