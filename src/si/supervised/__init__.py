@@ -7,8 +7,8 @@
 """Supervised learning module"""
 # ---------------------------------------------------------------------------
 from .knn import KNN
-from .linreg import LinearRegression, LinearRegressionReg
-from .logreg import LogisticRegression, LogisticRegressionReg
+from .linreg import LinearRegression
+from .logreg import LogisticRegression
 from .dt import DecisionTree
 from .ensemble import Ensemble, majority, average
 from .nn import *

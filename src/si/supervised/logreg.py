@@ -16,7 +16,9 @@ class LogisticRegression(Model):
     def __init__(self,
                  epochs:int=10000,
                  lr:float=0.1,
-                 threshold:float=0.5):
+                 threshold:float=0.5,
+                 lbd:float=1
+                 ):
         """ Logistic regression model.
 
         :param bool gd: If True uses gradient descent (GD) to train the model
@@ -24,12 +26,14 @@ class LogisticRegression(Model):
         :param int epochs: Number of epochs for GD.
         :param float lr: Learning rate for GD. Default 0.1
         :param threshold: The decision threshold, a value in (0,1). Default 0.5
+        :param float ldb: lambda for the regularization. Default 1.
         """
         super(LogisticRegression, self).__init__()
         self.theta = None
         self.epochs = epochs
         self.lr = lr
         self.threshold=threshold
+        self.lbd = lbd
 
     def fit(self, dataset):
         X, y = dataset.getXy()
@@ -43,12 +47,16 @@ class LogisticRegression(Model):
 
     def train(self, X, y):
         n = X.shape[1]
+        m = X.shape[0]
         self.history = {}
         self.theta = np.zeros(n)
+
         for epoch in range(self.epochs):
             z = np.dot(X, self.theta)
             h = sigmoid(z)
             gradient = np.dot(X.T, (h - y)) / y.size
+            if self.lbd>0:
+                gradient[1:] = gradient[1:] + (self.lbd / m) * self.theta[1:]
             self.theta -= self.lr * gradient
             self.history[epoch] = [self.theta.copy(), self.cost()]
 
@@ -66,52 +74,13 @@ class LogisticRegression(Model):
         X = add_intersect(X) if X is not None else self.X
         y = y if y is not None else self.y
         theta = theta if theta is not None else self.theta
+        m = X.shape[0]
 
         h = sigmoid(np.dot(X, theta))
         cost = (-y * np.log(h) - (1-y) * np.log(1-h))
-        res = np.sum(cost) / X.shape[0]
-        return res
-
-
-class LogisticRegressionReg(LogisticRegression):
-
-    def __init__(self,
-                 epochs:int=1000,
-                 lr:float=0.1,
-                 lbd:float=1,
-                 threshold:float=0.5):
-        """ Linear regression model with L2 regularization.
-
-        :param bool gd: If True uses gradient descent (GD) to train the model\
-            otherwise closed form lineal algebra. Default False.
-        :param int epochs: Number of epochs for GD.
-        :param float lr: Learning rate for GD.
-        :param float ldb: lambda for the regularization.
-        """
-        super(LogisticRegressionReg, self).__init__(epochs=epochs, lr=lr, threshold=threshold)
-        self.lbd = lbd
-
-    def train(self, X, y):
-        n = X.shape[1]
-        m = X.shape[0]
-        self.history = {}
-        self.theta = np.zeros(n)
-        for epoch in range(self.epochs):
-            z = np.dot(X, self.theta)
-            h = sigmoid(z)
-            gradient = np.dot(X.T, (h - y)) / y.size
-            gradient[1:] = gradient[1:] + (self.lbd / m) * self.theta[1:]
-            self.theta -= self.lr * gradient
-            self.history[epoch] = [self.theta[:], self.cost()]
-
-    def cost(self, X=None, y=None, theta=None):
-        X = add_intersect(X) if X is not None else self.X
-        y = y if y is not None else self.y
-        theta = theta if theta is not None else self.theta
-
-        m = X.shape[0]
-        p = sigmoid(np.dot(X, theta))
-        cost = (-y * np.log(p) - (1-y) * np.log(1-p))
-        reg = np.dot(theta[1:], theta[1:]) * self.lbd / (2*m)
-        res = (np.sum(cost) / m) + reg
+        if self.lbd>0:
+            reg = np.dot(theta[1:], theta[1:]) * self.lbd / (2*m)
+            res = (np.sum(cost) / m) + reg
+        else:    
+            res = np.sum(cost) / m
         return res

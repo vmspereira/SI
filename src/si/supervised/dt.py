@@ -59,7 +59,7 @@ class DecisionTree(Model):
            first and then passses them
         to the Gini criterion.
         '''
-        return self.gini(self.nodeProbas(y))
+        return self.gini(self.node_probs(y))
 
     def calc_best_split(self, X, y):
         '''Calculates the best possible split for the concrete node of the tree'''
@@ -150,8 +150,8 @@ class DecisionTree(Model):
         node.right.probas = self.node_probs(y_right)
 
         # splitting recursevely
-        self.buildDT(x_right, y_right, node.right)
-        self.buildDT(x_left, y_left, node.left)
+        self.build_dt(x_right, y_right, node.right)
+        self.build_dt(x_left, y_left, node.left)
 
     def fit(self, dataset):
         self.dataset = dataset
@@ -161,7 +161,7 @@ class DecisionTree(Model):
         # root node creation
         self.Tree = Node()
         self.Tree.depth = 1
-        self.Tree.probas = self.nodeProbas(y)
+        self.Tree.probas = self.node_probs(y)
         self.build_dt(X, y, self.Tree)
         self.is_fitted = True
 

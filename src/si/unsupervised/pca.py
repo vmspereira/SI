@@ -12,7 +12,7 @@ from ..data import StandardScaler
 
 class PCA:
 
-    def __init__(self, n_components:int=2, svd:bool=True, scale:bool=True) -> None:
+    def __init__(self, n_components:int=2, svd:bool=True, scale_data:bool=True) -> None:
         """ Principal component analysis.
         :param (int) n_components: Number of components
         :param (bool) svd: Uses SVD decomposition to obtain the eigen values/vector.\
@@ -38,7 +38,7 @@ class PCA:
         
             - The variables exhibit relationships among themselves.
 
-        Some rule of thunb:
+        Some rule of thumb:
 
             - The number of observations should be at least 150 with a ratio measurement
               of 5:1.
@@ -49,11 +49,11 @@ class PCA:
         """
         self.n_components = n_components
         self.svd = svd
-        self.scale = scale
+        self.scale_data = scale_data
 
     def scale(self, dataset):
         X = dataset.X
-        if self.scale:
+        if self.scale_data:
             X_scale = StandardScaler().fit_transform(dataset)
             X_center = X_scale.X
         else:
@@ -63,7 +63,7 @@ class PCA:
 
 
     def fit(self, dataset):
-        """Computes the eigen values an vectors"""
+        """Computes the eigen values and vectors"""
         self.X_center = self.scale(dataset)
         if self.svd:
             # uses SVD
@@ -81,7 +81,7 @@ class PCA:
         """
         The principal components, eigen vectors,
         are used to build a transition matrix from an higher
-        to a lower dimension
+        to a lower dimension.
         """ 
         X_center = self.scale(dataset) 
         self.sorted_index = np.argsort(self.e_vals)[::-1]

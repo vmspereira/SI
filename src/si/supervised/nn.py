@@ -53,7 +53,7 @@ class Layer(ABC):
 
 
 class NN(Model):
-    def __init__(self, epochs=1000, lr=0.1, verbose=True, batchsize=None):
+    def __init__(self, epochs=1000, lr=0.1, verbose=True):
         """Neural Network model. The default loss function is the mean square error (MSE).
         A NN may be regarded as a sequence of layers, functions applied sequentialy one after the other.
      
@@ -63,7 +63,6 @@ class NN(Model):
         self.epochs = epochs
         self.lr = lr
         self.verbose = verbose
-        self.batchsize = batchsize
         self.layers = []
         self.loss = mse
         self.loss_prime = mse_prime
@@ -170,7 +169,7 @@ class Dense(Layer):
         # computes the bias error: dE/dB = dE/dY
         bias_error = np.sum(output_error, axis=0)
         
-        # computers the layer input error (the output error from the previous layer), 
+        # computes the layer input error (the output error from the previous layer), 
         # dE/dX, to pass on to the previous layer
         input_error = np.dot(output_error, self.weights.T)
         
@@ -198,7 +197,8 @@ class Activation(Layer):
     def __init__(self, activation):
         """Activation layer.
         Activation "layers" allow NN to learn non linear functions, as would be the
-        case if only dense layers were used. 
+        case if only dense layers were used.
+
 
         :param activation: An instance of si.util.activation.ActivationBase.
         """

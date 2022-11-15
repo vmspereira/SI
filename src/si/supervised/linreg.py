@@ -13,19 +13,22 @@ import numpy as np
 
 class LinearRegression(Model):
 
-    def __init__(self, gd=False, epochs=1000, lr=0.001):
+    def __init__(self, epochs=1000, lr=0.001, ldb=1, gd=False):
         """ Linear regression model.
 
-        :param bool gd: If True uses gradient descent (GD) to train the model\
-            otherwise uses closed form linear algebra. Default False.
         :param int epochs: Number of epochs for GD.
         :param float lr: Learning rate for GD.
+        :param float ldb: lambda for the regularization. 
+            If non positive, L2 regularization is not applied.
+        :param bool gd: If True uses gradient descent (GD) to train the model\
+            otherwise uses closed form linear algebra. Default False. 
         """
         super(LinearRegression, self).__init__()
-        self.gd = gd
         self.theta = None
         self.epochs = epochs
         self.lr = lr
+        self.lbd=ldb
+        self.gd = gd
 
     def fit(self, dataset):
         X, y = dataset.getXy()
@@ -72,8 +75,31 @@ class LinearRegression(Model):
                     XT X W - XT Y = 0
                 <=> W = inv(XT X) * XT Y
 
+        L2 Reg
+
+            theta = inv(XT*X+lbd*I)*XT*y
+        
+            The difference to the LR closed for is the inclusion of the matrix 
+        
+                    | 0 0 0 ... 0 |
+                    | 0 1 0 ... 0 |
+            lbd  *  | 0 0 1 ... 0 |
+                    |       ...
+                    | 0 0 0 ... 1 |
+        
+            in the derivative resulting from adding the L2 regulation term.
+            Note that the matrix is not an identity matrix as the first entry is 0.
+            The regulatization is not applied to the intersect (bias) term. 
+            You may, as exercice, derive the closed form.        
         """
-        self.theta = np.linalg.inv(X.T @ X) @ X.T @ y
+        if self.lbd>0:
+            n = X.shape[1]
+            identity = np.eye(n)
+            identity[0, 0] = 0
+            self.theta = np.linalg.inv(X.T @ X + self.lbd*identity) @ X.T @ y
+        else:
+            self.theta = np.linalg.inv(X.T @ X) @ X.T @ y
+        
 
     def train_gd(self, X, y):
         """ 
@@ -100,11 +126,28 @@ class LinearRegression(Model):
         # initialize the weights
         self.theta = np.zeros(n)
         
+        # with L2
+        if self.lbd>0:
+            lbds = np.full(m, self.lbd)
+            lbds[0] = 0
+
         # iterative GD
         for epoch in range(self.epochs):
-            grad = 1/m * (X @ self.theta - y) @ X
-            self.theta -= self.lr * grad
+            # the lambda value is not applied to the bias term.            
+            
+            # with L2
+            if self.lbd>0:
+                grad = (X.dot(self.theta)-y).dot(X)
+                self.theta -= (self.lr/m) * (lbds*self.theta+grad)
+            
+            # without L2    
+            else:
+                grad = 1/m * (X @ self.theta - y) @ X
+                self.theta -= self.lr * grad
+            
             self.history[epoch] = [self.theta.copy(), self.cost()]
+
+
 
     def predict(self, x):
         assert self.is_fitted, 'Model must be fit before predicting'
@@ -124,63 +167,3 @@ class LinearRegression(Model):
         
         # calculates the MSE
         return mse(y, y_pred)/2
-
-
-class LinearRegressionReg(LinearRegression):
-
-    def __init__(self, gd=False, epochs=1000, lr=0.001, lbd=1):
-        """ Linear regression model with L2 regularization.
-        Regularization is a technique in machine learning that 
-        tries to achieve the generalization of the model by 
-        pushing the weights toward zero and discouraging complex models.
-        
-        In this implementation, we use L2 regularization 
-        
-        :param bool gd: If True uses gradient descent (GD) to train the model\
-            otherwise closed form lineal algebra. Default False.
-        :param int epochs: Number of epochs for GD.
-        :param float lr: Learning rate for GD.
-        :param float ldb: lambda for the regularization.
-        """
-        super(LinearRegressionReg, self).__init__(gd=gd, epochs=epochs, lr=lr)
-        self.lbd = lbd
-
-    def train_closed(self, X, y):
-        """ Uses closed form linear algebra to fit the model.
-
-            theta = inv(XT*X+lbd*I)*XT*y
-        
-        The difference to the LR closed for is the inclusion of the matrix 
-       
-               | 0 0 0 ... 0 |
-               | 0 1 0 ... 0 |
-        lbd *  | 0 0 1 ... 0 |
-               |       ...
-               | 0 0 0 ... 1 |
-       
-        in the derivative resulting from adding the L2 regulation term.
-        Note that the matrix is not an identity matrix as the first entry is 0.
-        The regulatization is not applied to the intersect (bias) term. 
-        You may, as exercice, derive the closed form.
-        """
-        n = X.shape[1]
-        identity = np.eye(n)
-        identity[0, 0] = 0
-        self.theta = np.linalg.inv(X.T @ X + self.lbd*identity) @ X.T @ y
-        self.is_fitted = True
-
-    def train_gd(self, X, y):
-        """ Uses gradient descent to fit the model."""
-        m = X.shape[0]
-        n = X.shape[1]
-        self.history = {}
-        self.theta = np.zeros(n)
-        
-        # the lambda value is not applied to the bias term.
-        lbds = np.full(m, self.lbd)
-        lbds[0] = 0
-
-        for epoch in range(self.epochs):
-            grad = (X.dot(self.theta)-y).dot(X)
-            self.theta -= (self.lr/m) * (lbds*self.theta+grad)
-            self.history[epoch] = [self.theta.copy(), self.cost()]
