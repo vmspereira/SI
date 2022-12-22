@@ -10,13 +10,12 @@ from abc import ABC, abstractmethod
 
 class Transformer(ABC):
 
-    @abstractmethod
     def fit(self, dataset):
         """Learns the transformer parameters (if any).
 
         :param dataset: A dataset to learn from.
         """
-        raise NotImplementedError
+        return self
 
     @abstractmethod
     def transform(self, dataset, inline:bool=False):

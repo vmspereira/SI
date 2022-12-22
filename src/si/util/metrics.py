@@ -8,6 +8,19 @@
 # ---------------------------------------------------------------------------
 
 import numpy as np
+import pandas as pd
+
+def confusion_matrix(true_y, predict_y, format ='df'):
+    """
+    Computes a confusion matrix
+    """
+    cm = pd.crosstab(true_y, predict_y, 
+                     rownames = ["True values"], 
+                     colnames = ["Predicted values"])
+    if format=='df':
+        return pd.DataFrame(cm)
+    else:
+        return cm
 
 
 def accuracy_score(y_true, y_pred):
@@ -21,6 +34,12 @@ def accuracy_score(y_true, y_pred):
     """
     accuracy = (y_true==y_pred).sum() / len(y_true)
     return accuracy
+
+
+def multiclass_accuracy(y_true, y_pred):
+    p = np.argmax(y_pred,axis=1)
+    t = np.argmax(y_true,axis=1)
+    return accuracy_score(t,p)
 
 
 def mse(y_true, y_pred):

@@ -11,7 +11,7 @@ import numpy as np
 from abc import ABC, abstractmethod
 
 
-class ActivationBase(ABC):
+class Activation(ABC):
     def __init__(self):
         """Initialize the ActivationBase object"""
         super().__init__()
@@ -33,7 +33,7 @@ class ActivationBase(ABC):
         raise NotImplementedError
 
 
-class Sigmoid(ActivationBase):
+class Sigmoid(Activation):
     def __init__(self):
         """A logistic sigmoid activation function."""
         super().__init__()
@@ -57,7 +57,7 @@ class Sigmoid(ActivationBase):
         return fn_x * (1 - fn_x) * (1 - 2 * fn_x)
 
 
-class ReLU(ActivationBase):
+class ReLU(Activation):
     """A rectified linear activation function."""
 
     def __init__(self):
@@ -76,7 +76,7 @@ class ReLU(ActivationBase):
         return np.zeros_like(x)
 
 
-class LeakyReLU(ActivationBase):
+class LeakyReLU(Activation):
     """
     'Leaky' version of a rectified linear unit (ReLU).
     """
@@ -102,7 +102,7 @@ class LeakyReLU(ActivationBase):
         return np.zeros_like(x)
 
 
-class Tanh(ActivationBase):
+class Tanh(Activation):
     def __init__(self):
         """A hyperbolic tangent activation function."""
         super().__init__()
@@ -121,7 +121,7 @@ class Tanh(ActivationBase):
         return -2 * tanh_x * (1 - tanh_x ** 2)
 
 
-class Affine(ActivationBase):
+class Affine(Activation):
     def __init__(self, slope=1, intercept=0):
         """
         An affine activation function.
@@ -154,7 +154,7 @@ class Identity(Affine):
         return "Identity"
 
 
-class ELU(ActivationBase):
+class ELU(Activation):
     def __init__(self, alpha=1.0):
         """
         An exponential linear unit (ELU).
@@ -175,7 +175,7 @@ class ELU(ActivationBase):
         return np.where(x >= 0, np.zeros_like(x), self.alpha * np.exp(x))
 
 
-class Exponential(ActivationBase):
+class Exponential(Activation):
     def __init__(self):
         """An exponential (base e) activation function"""
         super().__init__()
@@ -193,7 +193,7 @@ class Exponential(ActivationBase):
         return np.exp(x)
 
 
-class SELU(ActivationBase):
+class SELU(Activation):
     """
     A scaled exponential linear unit (SELU).
     """
@@ -219,7 +219,7 @@ class SELU(ActivationBase):
         return np.where(x > 0, np.zeros_like(x), np.exp(x) * self.alpha * self.scale)
 
 
-class HardSigmoid(ActivationBase):
+class HardSigmoid(Activation):
     def __init__(self):
         """
         A "hard" sigmoid activation function.
@@ -239,7 +239,7 @@ class HardSigmoid(ActivationBase):
         return np.zeros_like(x)
 
 
-class SoftPlus(ActivationBase):
+class SoftPlus(Activation):
     def __init__(self):
         """
         A softplus activation function.
@@ -259,3 +259,29 @@ class SoftPlus(ActivationBase):
     def prime2(self, x):
         exp_x = np.exp(x)
         return exp_x / ((exp_x + 1) ** 2)
+
+
+class SoftMax(Activation):
+    
+    def __init__(self):
+        super().__init__()
+    
+    def __str__(self):
+        return "SoftMax"
+
+    def fn(self, z):
+        assert len(z.shape) == 2
+        s = np.max(z, axis=1)
+        s = s[:, np.newaxis]
+        e_x = np.exp(z - s)
+        div = np.sum(e_x, axis=1)
+        div = div[:, np.newaxis]
+        return e_x / div
+        
+    def prime(self, x):
+        s = x.reshape(-1, 1)
+        return np.diagflat(s) - np.dot(s, s.T)
+    
+    
+    
+

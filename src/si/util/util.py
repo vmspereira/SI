@@ -7,7 +7,6 @@
 """Utility module"""
 # ---------------------------------------------------------------------------
 import numpy as np
-import pandas as pd
 
 # Y is reserved to idenfify dependent variables
 ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXZ'
@@ -128,15 +127,3 @@ def minibatch(X, batchsize=256, shuffle=True):
             yield ix[i * batchsize: (i + 1) * batchsize]
 
     return mb_generator(),
-
-def confusion_matrix(true_y, predict_y, format ='df'):
-    """
-    Computes a confusion matrix
-    """
-    cm = pd.crosstab(true_y, predict_y, 
-                     rownames = ["True values"], 
-                     colnames = ["Predicted values"])
-    if format=='df':
-        return pd.DataFrame(cm)
-    else:
-        return cm

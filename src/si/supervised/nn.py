@@ -53,7 +53,7 @@ class Layer(ABC):
 
 
 class NN(Model):
-    def __init__(self, epochs=1000, lr=0.1, verbose=True):
+    def __init__(self, epochs=1000, lr=0.1, verbose=True, metric = None):
         """Neural Network model. The default loss function is the mean square error (MSE).
         A NN may be regarded as a sequence of layers, functions applied sequentialy one after the other.
      
@@ -66,7 +66,7 @@ class NN(Model):
         self.layers = []
         self.loss = mse
         self.loss_prime = mse_prime
-
+        self.metric = metric
         self.is_fitted = False
 
     def add(self, layer):
@@ -81,6 +81,9 @@ class NN(Model):
         """
         self.loss = loss
         self.loss_prime = loss_prime
+        
+    def setMetric(self, metric):
+        self.metric = metric
 
     def fit(self, dataset):
         X, y = dataset.getXy()
@@ -94,10 +97,9 @@ class NN(Model):
             # forward propagation
             # propagates values across all layers from
             # the input to the final output.
-             
             for layer in self.layers:
                 output = layer.forward(output)
-
+                
             # backward propagation (propagates errors)
             # Computes the derivatives to see how much each
             # parameter contributed to the total error and adjusts
@@ -106,16 +108,21 @@ class NN(Model):
             error = self.loss_prime(y_batch, output)
             for layer in reversed(self.layers):
                 error = layer.backward(error, self.lr)
-
+            
             # calculate average error on all samples
             err = self.loss(y_batch, output)
             self.history[epoch] = err
-            
-            # verbosity
-            if self.verbose:
-                print(f"epoch {epoch+1}/{self.epochs} error={err}")
+            if self.metric is not None:
+                score = self.metric(y, output)
+                score_s = f"{self.metric.__name__}={score}"
             else:
-                print(f"epoch {epoch+1}/{self.epochs} error={err}", end="\r")
+                score_s = ""
+            # verbosity
+            s = f"epoch {epoch+1}/{self.epochs} \t loss={err} \t {score_s}"
+            if self.verbose:
+                print(s)
+            else:
+                print(s, end="\r")
 
         self.is_fitted = True
 
@@ -364,3 +371,21 @@ class MaxPooling2D(Pooling2D):
 
     def __str__(self):
         return "MaxPooling2D"
+
+
+class Dropout(Layer):
+
+    def __init__(self, prob=0.5):
+        self.prob = prob
+
+    def forward(self, input):
+        self.mask = np.random.binomial(1, self.prob, size=input.shape) / self.prob
+        out = input * self.mask
+        return out.reshape(input.shape)
+
+    def backward(self, output_error, learning_rate):
+        dX = output_error * self.mask
+        return dX
+    
+    def __str__(self):
+        return f"DropOut {self.prob}"
