@@ -49,7 +49,7 @@ The _script_ folder contains some notebooks to test your code.
 - Naive Bayesian
 - Decision Tree
 - k-Nearest Neighbors
-- Neural Networks (Dense, Flatten, Conv2D, MaxPooling2D)
+- Neural Networks (Dense, Flatten, Conv2D, MaxPooling2D, DropOut)
 
 - Grid Search
 - Voting Ensemble

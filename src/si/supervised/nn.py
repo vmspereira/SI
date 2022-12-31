@@ -141,8 +141,6 @@ class NN(Model):
         return self.loss(y, output)
 
 
-
-
 class Dense(Layer):
     def __init__(self, input_size, output_size):
         """Fully Connected layer
@@ -360,6 +358,7 @@ class Pooling2D(Layer):
 
 
 class MaxPooling2D(Pooling2D):
+    
     def pool(self, X_col):
         max_idx = np.argmax(X_col, axis=0)
         out = X_col[max_idx, range(max_idx.size)]

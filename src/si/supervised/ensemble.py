@@ -20,11 +20,25 @@ def average(values):
 
 class Ensemble(Model):
 
-    def __init__(self, models, fvote, score):
+    def __init__(self, models, score, fvote=majority, fitted=False):
+        """Model Ensemble
+
+        Args:
+            models (list[Model]): a list of models.   
+            score (callable): the scoring function.
+            fvote (callable, optional): the decision making function (average,majority).
+               Default to majority. 
+            fitted (bool, optional): If the models were previously trained. Defaults to False.
+            
+        Note: majority should be used for classifications tasks while
+              average for regression tasks.
+        """
         super().__init__()
         self.models = models
         self.fvote = fvote
         self.score = score
+        self.is_fitted = fitted
+        
 
     def fit(self, dataset):
         self.dataset = dataset
