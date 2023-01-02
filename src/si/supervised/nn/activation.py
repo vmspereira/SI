@@ -8,19 +8,16 @@
 # ---------------------------------------------------------------------------
 
 import numpy as np
-from abc import ABC, abstractmethod
+from abc import abstractmethod
+from .nn import Layer
 
-
-class Activation(ABC):
+class Activation(Layer):
     def __init__(self):
-        """Initialize the ActivationBase object"""
+        """Activation layer.
+        Activation "layers" allow NN to learn non linear functions, as would be the
+        case if only dense layers were used.
+        """
         super().__init__()
-
-    def __call__(self, z):
-        """Apply the activation function to an input"""
-        if z.ndim == 1:
-            z = z.reshape(1, -1)
-        return self.fn(z)
 
     @abstractmethod
     def fn(self, z):
@@ -31,6 +28,27 @@ class Activation(ABC):
     def prime(self, x, **kwargs):
         """Compute the primeient of the activation function wrt the input"""
         raise NotImplementedError
+
+    def __call__(self, z):
+        """Apply the activation function to an input"""
+        if z.ndim == 1:
+            z = z.reshape(1, -1)
+        return self.fn(z)
+
+    def forward(self, input_data):
+        self.input = input_data
+
+        # apply the activation function to the input
+        self.output = self(self.input)
+        return self.output
+
+    def backward(self, output_error, learning_rate):
+        # learning_rate is not used because there is no "learnable" parameters.
+        # Only passed the error do the previous layer
+        return np.multiply(self.prime(self.input), output_error)
+    
+    def __str__(self):
+        return "Activation"
 
 
 class Sigmoid(Activation):

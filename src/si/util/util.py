@@ -100,6 +100,16 @@ def sigmoid(z):
     return 1 / (1 + np.exp(-z))
 
 def to_categorical(y, num_classes=None, dtype='float32'):
+    """_summary_
+
+    Args:
+        y (_type_): _description_
+        num_classes (_type_, optional): _description_. Defaults to None.
+        dtype (str, optional): _description_. Defaults to 'float32'.
+
+    Returns:
+        _type_: _description_
+    """
     y = np.array(y, dtype='int')
     input_shape = y.shape
     if input_shape and input_shape[-1] == 1 and len(input_shape) > 1:

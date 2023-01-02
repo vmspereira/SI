@@ -79,7 +79,7 @@ class LinearRegression(Model):
 
             theta = inv(XT*X+lbd*I)*XT*y
         
-            The difference to the LR closed for is the inclusion of the matrix 
+            The difference to the LR closed form is the inclusion of the matrix 
         
                     | 0 0 0 ... 0 |
                     | 0 1 0 ... 0 |
@@ -166,4 +166,4 @@ class LinearRegression(Model):
         y_pred = np.dot(X, theta)
         
         # calculates the MSE
-        return mse(y, y_pred)/2
+        return mse(y, y_pred)

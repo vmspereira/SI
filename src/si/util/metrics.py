@@ -29,7 +29,7 @@ def accuracy_score(y_true, y_pred):
 
     :param numpy.array y_true: array-like of shape (n_samples,) Ground truth correct labels.
     :param numpy.array y_pred: array-like of shape (n_samples,) Estimated target values.
-    :returns: C (float) Accuracy score.
+    :returns: (float) Accuracy score.
     """
     accuracy = (y_true==y_pred).sum() / len(y_true)
     return accuracy
@@ -52,12 +52,13 @@ def mse(y_true, y_pred):
     
     Note: some implementations of the MSE consider additionaly a division by 2
           to obtain a `cleaner` derivative allowing to cancel the factor '2' 
-          (see mse_prime). Computationally, they are equivalent as both require a bit shift.
+          (see mse_prime). 
+          Computationally, they are equivalent as both require a bit shift.
     """
     return np.mean(np.power(y_true-y_pred, 2))
 
 def mse_prime(y_true, y_pred):
-    """ The derivative of the MSE
+    """ The derivative of the MSE.
      
     :param numpy.array y_true: array-like of shape (n_samples,)
         Ground truth (correct) target values.
@@ -66,7 +67,7 @@ def mse_prime(y_true, y_pred):
     :returns: the derivative of the MSE irt the prediction
     
     Note: To avoid the additional multiplication by -1 just swap
-          the y_pred and y_true (computationaly better).
+          the y_pred and y_true.
     """
     return 2*(y_pred-y_true)/y_true.size
 
@@ -93,10 +94,26 @@ def rmse_prime(y_true, y_pred):
     return (y_pred-y_true)/(rmse(y_true,y_pred)*y_true.size) 
 
 def cross_entropy(y_true, y_pred):
+    """Cross entropy
+
+    :param numpy.array y_true: array-like of shape (n_samples,)
+        Ground truth (correct) target values.
+    :param numpy.array y_pred: array-like of shape (n_samples,)
+        Estimated target values.
+    :returns: cross entropy score
+    """
     m = y_pred.shape[0]
     return -(y_true * np.log(y_pred)).sum()/m
 
 def cross_entropy_prime(y_true, y_pred):
+    """Cross entropy derivative
+
+    :param numpy.array y_true: array-like of shape (n_samples,)
+        Ground truth (correct) target values.
+    :param numpy.array y_pred: array-like of shape (n_samples,)
+        Estimated target values.
+    :returns: cross entropy derivative
+    """
     m = y_pred.shape[0]
     return (y_pred - y_true)/m
 
@@ -118,3 +135,9 @@ def r2_score(y_true, y_pred):
     # R^2.
     score = 1 - numerator / denominator
     return score
+
+
+METRICS ={ 'MSE': (mse,mse_prime),
+           'RMSE': (rmse, rmse_prime),
+           'cross-entropy': (cross_entropy,cross_entropy_prime),
+         }
