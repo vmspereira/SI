@@ -10,7 +10,8 @@
 import numpy as np
 from abc import ABC, abstractmethod
 from si.supervised.model import Model
-from si.util import mse, mse_prime
+from si.util import METRICS
+import warnings
 
 class Layer(ABC):
     def __init__(self):
@@ -36,50 +37,72 @@ class Layer(ABC):
             This is achieved using derivatives: 
             dE/dX tells us how much X contibuted to the error E.
 
-            Using the chain rule we can propagate errors across each layer or function:
+            Using the chain rule we can propagate errors across each layer 
+            or function:
             
             dE/dy = dE/dx * dx/dy
             dE/dz = dE/dx * dx/dy * dy/dz
             ...
 
-            Knowing the contribution of a parameter to the final error, we can adjust the
-            parameter. If w is a parameter whose contribution to the final error is dE_total/dw,
-            the value of w is adjusted to w = w - lr * dE_total/dw.
+            Knowing the contribution of a parameter to the final error, we 
+            can adjust the parameter. If w is a parameter whose contribution
+            to the final error is dE_total/dw, the value of w is adjusted to 
+            w = w - lr * dE_total/dw.
             The learning rate (lr) controles the the learning speed... 
-            Note: learning too fast may lead to 'bad' learning, or not learning what you should. 
+            Note: learning too fast may lead to 'bad' learning, or not learning
+            what you should. 
         """
         raise NotImplementedError
 
 
 class NN(Model):
-    def __init__(self, epochs=1000, lr=0.1, verbose=True, metric = None):
+    def __init__(self, 
+                 epochs=1000, 
+                 lr=0.1, 
+                 verbose=True, 
+                 loss='MSE',
+                 metric = None,
+                 step=100):
         """Neural Network model. The default loss function is the mean square error (MSE).
         A NN may be regarded as a sequence of layers, functions applied sequentialy one after the other.
      
         :param int epochs: Number of epochs.
         :param float lr: The learning rate.
+        :param bool verbose: If all loss (and quality metric) are to be outputed. Default True.
+        :param str loss: The loss function. Default `MSE`. 
+        :param callable metric: The quality metric. Default None.
+        :param int step: the verbose steps. Default 100.
         """
         self.epochs = epochs
         self.lr = lr
         self.verbose = verbose
         self.layers = []
-        self.loss = mse
-        self.loss_prime = mse_prime
+        
+        if loss not in METRICS:
+            warnings.warn(f"{loss} is not a valid loss. Using MSE.")
+            loss = 'MSE'
+        self.loss = METRICS[loss][0]
+        self.loss_prime = METRICS[loss][1]
+        
         self.metric = metric
+        self.step = step
         self.is_fitted = False
 
     def add(self, layer):
         """Adds a layer to the network"""
         self.layers.append(layer)
 
-    def set_loss(self, loss, loss_prime):
+    def set_loss(self, loss):
         """Changes the loss function.
 
-        :param loss: The loss function.
-        :param loss_prime: The derivative of the loss function.
+        :param (str) loss: The loss function name.
         """
-        self.loss = loss
-        self.loss_prime = loss_prime
+        if loss in METRICS:
+            self.loss = METRICS[loss][0]
+            self.loss_prime = METRICS[loss][1]
+        else:
+            warnings.warn(f"{loss} is not a valid loss.")
+        
         
     def set_metric(self, metric):
         self.metric = metric
@@ -88,7 +111,7 @@ class NN(Model):
         X, y = dataset.getXy()
         self.dataset = dataset
         self.history = dict()
-        for epoch in range(self.epochs):
+        for epoch in range(1, self.epochs+1):
 
             output = X
             y_batch = y
@@ -115,18 +138,19 @@ class NN(Model):
             # if a quality metric is defined
             if self.metric is not None:
                 score = self.metric(y, output)
-                score_s = f" \t {self.metric.__name__}={score}"
+                score_s = f" {self.metric.__name__}={score}"
             else:
                 score = 0
                 score_s = ""
             
             self.history[epoch] = (err, score)
             # verbosity
-            s = f"epoch {epoch+1}/{self.epochs} \t loss={err}{score_s}"
-            if self.verbose:
-                print(s)
-            else:
-                print(s, end="\r")
+            if epoch%self.step==0:
+                s = f"epoch {epoch}/{self.epochs} loss={err}{score_s}"
+                if self.verbose:
+                    print(s)
+                else:
+                    print(s, end="\r")
 
         self.is_fitted = True
 

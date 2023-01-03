@@ -41,21 +41,29 @@ The _script_ folder contains some notebooks to test your code.
 - Variance Threshold
 - Select K-best
 
+
 - Principal Component Analysis
 - K-means Clustering
+
 
 - Linear regression
 - Logistic regression
 - Naive Bayesian
 - Decision Tree
 - k-Nearest Neighbors
-- Neural Networks (Dense, Flatten, Conv2D, MaxPooling2D, DropOut)
+
+
+- Neural Networks 
+    - Dense
+    - Flatten
+    - Conv2D (using Img2Col)
+    - MaxPooling2D
+    - DropOut
+
 
 - Grid Search
 - Voting Ensemble
 - Cross Validation
-- Img2Col
 
 ## License
-This work is licensed under a
-[Creative Commons Attribution 4.0 International License][cc-by].
+This work is licensed under a [Creative Commons Attribution 4.0 International License][cc-by]. You are free to use this work as long as you comply to the CC-BY-4 terms. For more information refer to [http://creativecommons.org/licenses/by/4.0/](http://creativecommons.org/licenses/by/4.0/)

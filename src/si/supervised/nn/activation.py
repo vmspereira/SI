@@ -14,8 +14,8 @@ from .nn import Layer
 class Activation(Layer):
     def __init__(self):
         """Activation layer.
-        Activation "layers" allow NN to learn non linear functions, as would be the
-        case if only dense layers were used.
+        Activation "layers" allow NN to learn non linear functions, 
+        as would be the case if only dense layers were used.
         """
         super().__init__()
 
@@ -69,7 +69,8 @@ class Sigmoid(Activation):
 
     def prime2(self, x):
         """
-        Evaluate the second derivative of the logistic sigmoid on the elements of `x`.
+        Evaluate the second derivative of the logistic sigmoid 
+        on the elements of `x`.
         """
         fn_x = self.fn(x)
         return fn_x * (1 - fn_x) * (1 - 2 * fn_x)
