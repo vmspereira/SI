@@ -137,7 +137,7 @@ def r2_score(y_true, y_pred):
     return score
 
 
-METRICS ={ 'MSE': (mse,mse_prime),
+METRICS ={ 'MSE': (mse, mse_prime),
            'RMSE': (rmse, rmse_prime),
-           'cross-entropy': (cross_entropy,cross_entropy_prime),
+           'cross-entropy': (cross_entropy, cross_entropy_prime),
          }
