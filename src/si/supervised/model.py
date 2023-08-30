@@ -21,7 +21,7 @@ class Model(ABC):
         self.is_fitted = False
 
     @abstractmethod
-    def fit(self, dataset):
+    def fit(self, dataset, **kwargs):
         raise NotImplementedError
 
     @abstractmethod

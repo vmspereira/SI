@@ -79,8 +79,8 @@ class NN(Model):
         Neural Network model. The default loss function is the mean square error (MSE).
         A NN may be regarded as a sequence of layers, functions applied sequentialy one after the other.
 
-        :param int epochs: Number of epochs.
-        :param int batch_size: Minibach size
+        :param int epochs: Default number of epochs.
+        :param int batch_size: Default minibach size
         :param Optimizer optimizer: The optimizer.
         :param bool verbose: If all loss (and quality metric) are to be outputed. Default True.
         :param str loss: The loss function. Default `MSE`.
@@ -129,18 +129,23 @@ class NN(Model):
     def set_metric(self, metric):
         self.metric = metric
 
-    def fit(self, dataset):
-        X, y = dataset.getXy()
+    def fit(self, dataset, **kwargs):
+        
+        epochs = kwargs.get('epochs', self.epochs)
+        batch_size = kwargs.get('batch_size', self.batch_size)
+        
         self.dataset = dataset
+        X, y = dataset.getXy()
+        
         self.history = dict()
-        for epoch in range(1, self.epochs + 1):
+        for epoch in range(1, epochs + 1):
             # lists to save the batch predicted and real values
             # to be later used to compute the epoch loss and
             # quality metrics
             x_ = []
             y_ = []
 
-            for batch in minibatch(X, y, self.batch_size):
+            for batch in minibatch(X, y, batch_size):
                 output_batch, y_batch = batch
                 # forward propagation
                 # propagates values across all layers from
@@ -159,24 +164,26 @@ class NN(Model):
                 x_.append(output_batch)
                 y_.append(y_batch)
 
-            out = np.concatenate(x_)
+            # all the epoch outputs
+            out_all = np.concatenate(x_)
             y_all = np.concatenate(y_)
+            
             # compute the loss
-            err = self.loss(y_all, out)
+            err = self.loss(y_all, out_all)
 
             # if a quality metric is defined
             if self.metric is not None:
-                score = self.metric(y_all, out)
+                score = self.metric(y_all, out_all)
                 score_s = f" {self.metric.__name__}={score}"
             else:
                 score = 0
                 score_s = ""
-
+            # save into the history
             self.history[epoch] = (err, score)
 
             # verbosity
             if epoch % self.step == 0:
-                s = f"epoch {epoch}/{self.epochs} loss={err}{score_s}"
+                s = f"epoch {epoch}/{epochs} loss={err}{score_s}"
                 if self.verbose:
                     print(s)
                 else:

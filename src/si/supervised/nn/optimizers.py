@@ -12,6 +12,7 @@ from abc import ABC, abstractmethod
 
 
 class Optimizer(ABC):
+    """Define how to update the learned parameters"""
     @abstractmethod
     def update(self, w, grad_wrt_w):
         raise NotImplementedError
@@ -33,7 +34,7 @@ class SGD(Optimizer):
         return w - self.learning_rate * self.w_updt
 
 
-class Adam:
+class Adam(Optimizer):
     def __init__(self, learning_rate=0.001, b1=0.9, b2=0.999):
         self.learning_rate = learning_rate
         self.eps = 1e-8
@@ -80,7 +81,7 @@ class NesterovAcceleratedGradient(Optimizer):
         return w - self.w_updt
 
 
-class Adagrad:
+class Adagrad(Optimizer):
     def __init__(self, learning_rate=0.01):
         self.learning_rate = learning_rate
         self.G = None  # Sum of squares of the gradients
@@ -96,7 +97,7 @@ class Adagrad:
         return w - self.learning_rate * grad_wrt_w / np.sqrt(self.G + self.eps)
 
 
-class Adadelta:
+class Adadelta(Optimizer):
     def __init__(self, rho=0.95, eps=1e-6):
         self.E_w_updt = None  # Running average of squared parameter updates
         self.E_grad = None  # Running average of the squared gradient of w
@@ -131,7 +132,7 @@ class Adadelta:
         return w - self.w_updt
 
 
-class RMSprop:
+class RMSprop(Optimizer):
     def __init__(self, learning_rate=0.01, rho=0.9):
         self.learning_rate = learning_rate
         self.Eg = None  # Running average of the square gradients at w

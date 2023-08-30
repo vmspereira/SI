@@ -292,17 +292,12 @@ class SoftMax(Activation):
         return "SoftMax"
 
     def fn(self, z):
-        assert len(z.shape) == 2
-        s = np.max(z, axis=1)
-        s = s[:, np.newaxis]
-        e_x = np.exp(z - s)
-        div = np.sum(e_x, axis=1)
-        div = div[:, np.newaxis]
-        return e_x / div
+        e_x = np.exp(z - np.max(z, axis=-1, keepdims=True))
+        return e_x / np.sum(e_x, axis=-1, keepdims=True)
         
     def prime(self, x):
-        s = x.reshape(-1, 1)
-        return np.diagflat(s) - np.dot(s, s.T)
+        p = self.fn(x)
+        return p * (1 - p)
     
     
     

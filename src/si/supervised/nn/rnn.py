@@ -16,25 +16,21 @@ from .activation import Tanh
 class RNN(Layer):
     """A Vanilla Fully-Connected Recurrent Neural Network layer.
 
-    Parameters:
-    -----------
-    n_units: int
-        The number of hidden states in the layer.
-    activation: string
-        The name of the activation function which will be applied to the output of each state.
-    bptt_trunc: int
-        Decides how many time steps the gradient should be propagated backwards through states
-        given the loss gradient for time step t.
-    input_shape: tuple
-        The expected input shape of the layer. For dense layers a single digit specifying
-        the number of features of the input. Must be specified if it is the first layer in
-        the network.
+    param int n_units: The number of hidden states in the layer.
+    param Activation activation: The activation function which will\
+        be applied to the output of each state.
+    param int bptt_trunc: Decides how many time steps the gradient\
+        should be propagated backwards through states given the loss gradient for time step t.
+    param tuple input_shape: The expected input shape of the layer. For dense layers a single
+        digit specifying the number of features of the input. Must be specified if it is the
+        first layer in the network.
     """
     def __init__(self, n_units, activation=None, bptt_trunc=5, input_shape=None):
         self.input_shape = input_shape
         self.n_units = n_units
         self.activation = Tanh() if activation is None else activation
         self.bptt_trunc = bptt_trunc
+        
         self.W = None # Weight of the previous state
         self.V = None # Weight of the output
         self.U = None # Weight of the input
@@ -87,7 +83,7 @@ class RNN(Layer):
             # Update gradient w.r.t V at time step t
             grad_V += accum_grad[:, t].T.dot(self.states[:, t])
             # Calculate the gradient w.r.t the state input
-            grad_wrt_state = accum_grad[:, t].dot(self.V) * self.activation.gradient(self.state_input[:, t])
+            grad_wrt_state = accum_grad[:, t].dot(self.V) * self.activation.prime(self.state_input[:, t])
             # Gradient w.r.t the layer input
             accum_grad_next[:, t] = grad_wrt_state.dot(self.U)
             # Update gradient w.r.t W and U by backprop. from time step t for at most
@@ -96,7 +92,7 @@ class RNN(Layer):
                 grad_U += grad_wrt_state.T.dot(self.layer_input[:, t_])
                 grad_W += grad_wrt_state.T.dot(self.states[:, t_-1])
                 # Calculate gradient w.r.t previous state
-                grad_wrt_state = grad_wrt_state.dot(self.W) * self.activation.gradient(self.state_input[:, t_-1])
+                grad_wrt_state = grad_wrt_state.dot(self.W) * self.activation.prime(self.state_input[:, t_-1])
 
         # Update weights
         self.U = self.U_opt.update(self.U, grad_U)
