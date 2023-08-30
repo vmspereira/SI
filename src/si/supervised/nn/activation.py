@@ -35,6 +35,9 @@ class Activation(Layer):
             z = z.reshape(1, -1)
         return self.fn(z)
 
+    def initialize(self, optimizer):
+        pass
+
     def forward(self, input_data):
         self.input = input_data
 
@@ -42,7 +45,7 @@ class Activation(Layer):
         self.output = self(self.input)
         return self.output
 
-    def backward(self, output_error, learning_rate):
+    def backward(self, output_error):
         # learning_rate is not used because there is no "learnable" parameters.
         # Only passed the error do the previous layer
         return np.multiply(self.prime(self.input), output_error)

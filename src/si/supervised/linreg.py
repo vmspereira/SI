@@ -13,12 +13,12 @@ import numpy as np
 
 class LinearRegression(Model):
 
-    def __init__(self, epochs=1000, lr=0.001, ldb=1, gd=False):
+    def __init__(self, epochs=1000, lr=0.001, lbd=1, gd=False):
         """ Linear regression model.
 
         :param int epochs: Number of epochs for GD.
         :param float lr: Learning rate for GD.
-        :param float ldb: lambda for the regularization. 
+        :param float lbd: lambda for the regularization. 
             If non positive, L2 regularization is not applied.
         :param bool gd: If True uses gradient descent (GD) to train the model\
             otherwise uses closed form linear algebra. Default False. 
@@ -27,7 +27,7 @@ class LinearRegression(Model):
         self.theta = None
         self.epochs = epochs
         self.lr = lr
-        self.lbd=ldb
+        self.lbd=lbd
         self.gd = gd
 
     def fit(self, dataset):
@@ -155,8 +155,7 @@ class LinearRegression(Model):
         return np.dot(self.theta, _x)
 
     def cost(self, X=None, y=None, theta=None):
-        """ Uses MSE as cost function J
-        """
+        """ Uses MSE as cost function J"""
         # uses the trained dataset and weights if not provided.
         X = add_intersect(X) if X is not None else self.X
         y = y if y is not None else self.y

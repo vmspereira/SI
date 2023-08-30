@@ -302,3 +302,65 @@ class Dropout(Layer):
 
     def __str__(self):
         return f"DropOut {self.prob}"
+
+
+class BatchNormalization(Layer):
+    """Batch normalization.
+    """
+    def __init__(self, momentum=0.99):
+        self.momentum = momentum
+        self.eps = 0.01
+        self.running_mean = None
+        self.running_var = None
+
+    def initialize(self, optimizer):
+        # Initialize the parameters
+        self.gamma  = np.ones(self.input_shape)
+        self.beta = np.zeros(self.input_shape)
+        # parameter optimizers
+        self.gamma_opt  = copy(optimizer)
+        self.beta_opt = copy(optimizer)
+
+    def forward(self, input):
+
+        # Initialize running mean and variance if first run
+        if self.running_mean is None:
+            self.running_mean = np.mean(input, axis=0)
+            self.running_var = np.var(input, axis=0)
+
+        mean = np.mean(input, axis=0)
+        var = np.var(input, axis=0)
+        self.running_mean = self.momentum * self.running_mean + (1 - self.momentum) * mean
+        self.running_var = self.momentum * self.running_var + (1 - self.momentum) * var
+    
+        # Statistics saved for backward pass
+        self.X_centered = input - mean
+        self.stddev_inv = 1 / np.sqrt(var + self.eps)
+
+        X_norm = self.X_centered * self.stddev_inv
+        output = self.gamma * X_norm + self.beta
+
+        return output
+
+    def backward(self, output_error):
+
+        # Save parameters used during the forward pass
+        gamma = self.gamma
+
+        X_norm = self.X_centered * self.stddev_inv
+        grad_gamma = np.sum(output_error * X_norm, axis=0)
+        grad_beta = np.sum(output_error, axis=0)
+
+        self.gamma = self.gamma_opt.update(self.gamma, grad_gamma)
+        self.beta = self.beta_opt.update(self.beta, grad_beta)
+
+        batch_size = output_error.shape[0]
+
+        # The gradient of the loss with respect to the layer inputs (use weights and statistics from forward pass)
+        output_error = (1 / batch_size) * gamma * self.stddev_inv * (
+            batch_size * output_error
+            - np.sum(output_error, axis=0)
+            - self.X_centered * self.stddev_inv**2 * np.sum(output_error * self.X_centered, axis=0)
+            )
+
+        return output_error

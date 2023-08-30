@@ -9,10 +9,9 @@
 import numpy as np
 from ..util.util import label_gen
 
-__all__ = ['Dataset']
-
 
 class Dataset:
+    
     def __init__(self, X=None, y=None,
                  xnames: list = None,
                  yname: str = None):
@@ -110,6 +109,9 @@ class Dataset:
             columns = self._xnames[:]
         return pd.DataFrame(fullds, columns=columns)
 
+    def __repr_html__(self) -> str:
+        return self.toDataframe().to_html()
+    
     def getXy(self):
         return self.X, self.y
 

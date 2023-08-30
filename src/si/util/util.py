@@ -124,16 +124,16 @@ def to_categorical(y, num_classes=None, dtype='float32'):
     categorical = np.reshape(categorical, output_shape)
     return categorical
 
-def minibatch(X, batchsize=256, shuffle=True):
-    N = X.shape[0]
-    ix = np.arange(N)
-    n_batches = int(np.ceil(N / batchsize))
-
+def minibatch(X,y, batchsize=256, shuffle=True):
+    if y is not None:
+        assert X.shape[0] == y.shape[0]
+    indices = np.arange(X.shape[0])
+    batch_size = batchsize if batchsize < X.shape[0] else X.shape[0]  
     if shuffle:
-        np.random.shuffle(ix)
-
-    def mb_generator():
-        for i in range(n_batches):
-            yield ix[i * batchsize: (i + 1) * batchsize]
-
-    return mb_generator(),
+        np.random.shuffle(indices)
+    for start_idx in range(0, X.shape[0] - batch_size + 1, batch_size):
+        excerpt = indices[start_idx:start_idx + batch_size]
+        if y is not None:
+            yield X[excerpt], y[excerpt]
+        else:
+            yield X[excerpt]

@@ -12,8 +12,13 @@ from ..data import StandardScaler
 
 class PCA:
 
-    def __init__(self, n_components:int=2, svd:bool=True, scale_data:bool=True) -> None:
-        """ Principal component analysis.
+    def __init__(self, 
+                 n_components:int=2, 
+                 svd:bool=True, 
+                 scale_data:bool=True) -> None:
+        """ 
+        Principal component analysis.
+        
         :param (int) n_components: Number of components
         :param (bool) svd: Uses SVD decomposition to obtain the eigen values/vector.\
              If False, uses GEEV right eigen vector on the covariance matrix.

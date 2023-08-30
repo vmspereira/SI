@@ -11,6 +11,18 @@ from ..util import accuracy_score
 import numpy as np
 
 
+def entropy(y):
+    """Calculates the entropy"""
+    hist = np.bincount(y)
+    ps = hist / len(y)
+    return -np.sum([p * np.log2(p) for p in ps if p > 0])
+
+
+def gini(probas):
+    """Calculates gini criterion"""
+    return 1 - np.sum(probas**2)
+
+
 class Node:
     """Implementation of a simple binary tree for DT classifier."""
 
@@ -20,7 +32,7 @@ class Node:
         # derived from splitting criteria
         self.column = None
         self.threshold = None
-        # probability for object inside the Node to belong 
+        # probability for object inside the Node to belong
         # for each of the given classes
         self.probas = None
         # depth of the given node
@@ -30,8 +42,10 @@ class Node:
 
 
 class DecisionTree(Model):
+    def __init__(
+        self, max_depth: int = 3, min_samples_leaf: int = 1, min_samples_split: int = 2
+    ) -> None:
 
-    def __init__(self, max_depth=3, min_samples_leaf=1, min_samples_split=2):
         super().__init__()
         self.max_depth = max_depth
         self.min_samples_leaf = min_samples_leaf
@@ -50,19 +64,30 @@ class DecisionTree(Model):
             probas.append(proba)
         return np.asarray(probas)
 
-    def gini(self, probas):
-        """Calculates gini criterion"""
-        return 1 - np.sum(probas**2)
-
     def calc_impurity(self, y):
-        '''Wrapper for the impurity calculation. Calculates probas 
-           first and then passses them
-        to the Gini criterion.
-        '''
-        return self.gini(self.node_probs(y))
+        """
+        Wrapper for the impurity calculation. Calculates probabilities
+        first and then passses them to the Gini criterion.
+
+        The gini impurity measures the frequency at which any element
+        of the dataset will be mislabelled when it is randomly labeled.
+
+        The minimum value of the Gini Index is 0. This happens when the
+        node is pure, this means that all the contained elements in the
+        node are of one unique class. Therefore, this node will not be
+        split again. Thus, the optimum split is chosen by the features
+        with less Gini Index. Moreover, it gets the maximum value when
+        the probability of the two classes are the same.
+
+        """
+        return gini(self.node_probs(y))
+
+    # TODO: Entropy criterion #######################################
 
     def calc_best_split(self, X, y):
-        '''Calculates the best possible split for the concrete node of the tree'''
+        """
+        Calculates the best possible split for the concrete node of the tree.
+        """
 
         bestSplitCol = None
         bestThresh = None
@@ -89,8 +114,9 @@ class DecisionTree(Model):
 
                 # calculate information gain
                 infoGain = impurityBefore
-                infoGain -= (impurityLeft * y_left.shape[0] / y.shape[0]) + \
-                    (impurityRight * y_right.shape[0] / y.shape[0])
+                infoGain -= (impurityLeft * y_left.shape[0] / y.shape[0]) + (
+                    impurityRight * y_right.shape[0] / y.shape[0]
+                )
 
                 # is this infoGain better then all other?
                 if infoGain > bestInfoGain:
@@ -111,9 +137,9 @@ class DecisionTree(Model):
         return bestSplitCol, bestThresh, x_left, y_left, x_right, y_right
 
     def build_dt(self, X, y, node):
-        '''
+        """
         Recursively builds decision tree from the top to bottom
-        '''
+        """
         # checking for the terminal conditions
         if node.depth >= self.max_depth:
             node.is_terminal = True
@@ -133,7 +159,10 @@ class DecisionTree(Model):
         if splitCol is None:
             node.is_terminal = True
 
-        if x_left.shape[0] < self.min_samples_leaf or x_right.shape[0] < self.min_samples_leaf:
+        if (
+            x_left.shape[0] < self.min_samples_leaf
+            or x_right.shape[0] < self.min_samples_leaf
+        ):
             node.is_terminal = True
             return
 
@@ -166,11 +195,11 @@ class DecisionTree(Model):
         self.is_fitted = True
 
     def predict_sample(self, x, node):
-        '''
-        Passes one object through decision tree and return the probability of 
+        """
+        Passes one object through decision tree and return the probability of
         it to belong to each class
-        '''
-        assert self.is_fitted, 'Model must be fit before predicting'
+        """
+        assert self.is_fitted, "Model must be fit before predicting"
         # if we have reached the terminal node of the tree
         if node.is_terminal:
             return node.probas
@@ -182,7 +211,7 @@ class DecisionTree(Model):
         return probas
 
     def predict(self, x):
-        assert self.is_fitted, 'Model must be fit before predicting'
+        assert self.is_fitted, "Model must be fit before predicting"
         pred = np.argmax(self.predict_sample(x, self.Tree))
         return pred
 
@@ -190,6 +219,5 @@ class DecisionTree(Model):
         X = X if X is not None else self.dataset.X
         y = y if y is not None else self.dataset.y
 
-        y_pred = np.ma.apply_along_axis(self.predict,
-                                        axis=0, arr=X.T)
+        y_pred = np.ma.apply_along_axis(self.predict, axis=0, arr=X.T)
         return accuracy_score(y, y_pred)

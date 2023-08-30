@@ -17,7 +17,9 @@ class KMeans:
                  max_iterations: int=1000, 
                  distance:callable=l2_distance
                  ) -> None:
-        """ KMeans algorithm.
+        """ 
+        KMeans algorithm.
+        
         :param (int) k: number of clusters
         :param (int) max_iterations: Maximum number of iterations to run if the\
             algorithm does not converge. Default 1000

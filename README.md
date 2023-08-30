@@ -37,20 +37,27 @@ The _script_ folder contains some notebooks to test your code.
 
 ## ML Algorithms
 
+### Pre-processing
+
 - Standard Scaler
 - Variance Threshold
 - Select K-best
 
 
+### Unsupervised
+
 - Principal Component Analysis
 - K-means Clustering
 
+### Supervised
 
 - Linear regression
 - Logistic regression
 - Naive Bayesian
 - Decision Tree
+- Random Forest
 - k-Nearest Neighbors
+- SVM
 
 
 - Neural Networks 
@@ -59,10 +66,12 @@ The _script_ folder contains some notebooks to test your code.
     - Conv2D (using Img2Col)
     - MaxPooling2D
     - DropOut
+    - BatchNormalization
+    - RNN
 
 
 - Grid Search
-- Voting Ensemble
+- Bagging Ensemble
 - Cross Validation
 
 ## License

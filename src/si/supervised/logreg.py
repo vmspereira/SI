@@ -7,7 +7,7 @@
 """Logistic regression module"""
 # ---------------------------------------------------------------------------
 from .model import Model
-from ..util import sigmoid, add_intersect
+from si.util import sigmoid, add_intersect
 import numpy as np
 
 

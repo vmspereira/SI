@@ -6,24 +6,31 @@
 # ---------------------------------------------------------------------------
 """Convolutional Layers"""
 # ---------------------------------------------------------------------------
-import numpy as np
+
 from .nn import Layer
 from .im2col import pad2D, im2col, col2im
+import numpy as np
+from copy import copy
 
 class Conv2D(Layer):
     def __init__(self, input_shape, kernel_shape, layer_depth, stride=1, padding=0):
         self.input_shape = input_shape
+        self.kernel_shape = kernel_shape
         self.in_ch = input_shape[2]
         self.out_ch = layer_depth
         self.stride = stride
         self.padding = padding
+        
+    def initialize(self, optimizer=None):
         # weights
         self.weights = (
-            np.random.rand(kernel_shape[0], kernel_shape[1], self.in_ch, self.out_ch)
+            np.random.rand(self.kernel_shape[0], self.kernel_shape[1], self.in_ch, self.out_ch)
             - 0.5
         )
         # bias
         self.bias = np.zeros((self.out_ch, 1))
+        self.w_opt = copy(optimizer)
+        self.b_opt = copy(optimizer)
 
     def forward(self, input):
         s = self.stride
@@ -49,7 +56,7 @@ class Conv2D(Layer):
         )
         return output_data
 
-    def backward(self, output_error, learning_rate):
+    def backward(self, output_error):
 
         fr, fc, in_ch, out_ch = self.weights.shape
         p = self.padding
@@ -65,13 +72,13 @@ class Conv2D(Layer):
         dX_col = W_reshape.T @ dout_reshaped
         input_error = col2im(dX_col, self.X_shape, self.weights.shape, p, self.stride)
 
-        self.weights -= learning_rate * dW
-        self.bias -= learning_rate * db
+        self.weights = self.w_opt.update(self.weights, dW)
+        self.bias = self.b_opt.update(self.bias,db)
 
         return input_error
 
     def __str__(self):
-        return "Conv2D"
+        return f"Conv2D {self.weights.shape}"
 
 
 class Pooling2D(Layer):
@@ -84,6 +91,9 @@ class Pooling2D(Layer):
 
     def dpool(self, dX_col, dout_col, pool_cache):
         raise NotImplementedError
+
+    def initialize(self, optimizer):
+        pass
 
     def forward(self, input):
         self.X_shape = input.shape
@@ -107,7 +117,7 @@ class Pooling2D(Layer):
         out = out.transpose(3, 1, 2, 0)
         return out
 
-    def backward(self, output_error, learning_rate):
+    def backward(self, output_error):
         n, w, h, d = self.X_shape
         dX_col = np.zeros_like(self.X_col)
         dout_col = output_error.transpose(1, 2, 3, 0).ravel()

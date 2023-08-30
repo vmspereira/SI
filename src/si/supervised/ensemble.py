@@ -21,7 +21,7 @@ def average(values):
 class Ensemble(Model):
 
     def __init__(self, models, score, fvote=majority, fitted=False):
-        """Model Ensemble
+        """Bagging Model Ensemble
 
         Args:
             models (list[Model]): a list of models.   

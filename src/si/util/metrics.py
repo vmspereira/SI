@@ -39,6 +39,25 @@ def multiclass_accuracy(y_true, y_pred):
     t = np.argmax(y_true,axis=1)
     return accuracy_score(t,p)
 
+
+def mae(y_true, y_pred):
+    """
+    Mean absolute error loss function.
+    Parameters
+
+    :param numpy.array y_true: array-like of shape (n_samples,)
+        Ground truth (correct) target values.
+    :param numpy.array y_pred: array-like of shape (n_samples,)
+        Estimated target values.
+    :returns: loss (float) A non-negative floating point value (the best value is 0.0).
+    """
+    return np.mean(np.abs(y_true-y_pred))
+
+def mae_prime(y_true, y_pred):
+    X = y_true - y_pred
+    m = y_pred.shape[0]
+    return np.where(X > 0, -1/m, np.where(X < 0, 1/m, 0))
+    
 def mse(y_true, y_pred):
     """
     Mean squared error regression loss function.
@@ -64,7 +83,7 @@ def mse_prime(y_true, y_pred):
         Ground truth (correct) target values.
     :param numpy.array y_pred: array-like of shape (n_samples,)
         Estimated target values.
-    :returns: the derivative of the MSE irt the prediction
+    :returns: the derivative of the MSE
     
     Note: To avoid the additional multiplication by -1 just swap
           the y_pred and y_true.
@@ -89,9 +108,10 @@ def rmse_prime(y_true, y_pred):
         Ground truth (correct) target values.
     :param numpy.array y_pred: array-like of shape (n_samples,)
         Estimated target values.
-    :returns: the derivative of the RMSE irt the prediction
+    :returns: the derivative of the RMSE
     """
-    return (y_pred-y_true)/(rmse(y_true,y_pred)*y_true.size) 
+    X = (y_pred-y_true)
+    return np.where(X==0, 0, X/(rmse(y_true,y_pred)*y_true.size)) 
 
 def cross_entropy(y_true, y_pred):
     """Cross entropy
@@ -117,6 +137,21 @@ def cross_entropy_prime(y_true, y_pred):
     m = y_pred.shape[0]
     return (y_pred - y_true)/m
 
+def softmax_cross_entropy(logits, y_true):
+    """Given model outputs (logits) and the indexes 
+       of the true class label, computes the softmax cross entropy.
+    """
+    true_class_logits = logits[np.arange(len(logits)), y_true]
+    
+    cross_entropy = - true_class_logits + np.log(np.sum(np.exp(logits), axis=-1))
+    return cross_entropy
+
+def softmax_cross_entropy_prime(logits, y_true):
+    ones_true_class = np.zeros_like(logits)
+    ones_true_class[np.arange(len(logits)),y_true] = 1
+    softmax = np.exp(logits) / np.exp(logits).sum(axis=-1,keepdims=True)
+    return (-ones_true_class + softmax) / logits.shape[0]
+
 def r2_score(y_true, y_pred):
     """
     R^2 regression score function.
@@ -139,5 +174,7 @@ def r2_score(y_true, y_pred):
 
 METRICS ={ 'MSE': (mse, mse_prime),
            'RMSE': (rmse, rmse_prime),
+           'MAE': (mae, mae_prime),
            'cross-entropy': (cross_entropy, cross_entropy_prime),
+           'softmax-cross-entropy':(softmax_cross_entropy, softmax_cross_entropy_prime)
          }

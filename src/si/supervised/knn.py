@@ -7,7 +7,7 @@
 """k-nearest neighbors module"""
 # ---------------------------------------------------------------------------
 from .model import Model
-from ..util import l2_distance, accuracy_score
+from si.util import l2_distance, accuracy_score
 import numpy as np
 
 
@@ -15,7 +15,16 @@ class KNN(Model):
     def __init__(self, num_neighbors:int, classification:bool=True):
         """
         k-nearest neighbors algorithm.
+        
+        “Tell me with whom you associate, and I will tell you who you are.”
+            ― Johann Wolfgang von Goethe
 
+        KNN is based on the notion that close data points are more likely to share
+        a common label.
+        
+        :param (int) num_neighbors: Number of closest neighbors to consider in the inference.
+        :param (bool) classification: If a classification or regression task. 
+            Default classification (True). 
 
         """
         super(KNN).__init__()
@@ -36,8 +45,10 @@ class KNN(Model):
         neighbors = self.get_neighbors(x)
         values = self.dataset.y[neighbors].tolist()
         if self.classification:
+            # for classification we consider as label the modal one.
             prediction = max(set(values), key=values.count)
         else:
+            # for regression we consider the average of the k neighbor labels.
             prediction = sum(values)/len(values)
         return prediction
 
