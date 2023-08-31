@@ -80,6 +80,31 @@ def train_test_split(dataset, split:float=0.8):
     test = Dataset(dataset.X[test_mask], dataset.y[test_mask], dataset._xnames, dataset._yname)
     return train, test
 
+def get_random_subsets(X, y, n_subsets, replacements=True):
+    """ Return random subsets (with replacements) of the data """
+    from si.data import Dataset
+    n_samples = np.shape(X)[0]
+    # Concatenate x and y and do a random shuffle
+    indices = np.arange(X.shape[0])
+    np.random.shuffle(indices)
+    subsets = []
+
+    # Uses 50% of training samples without replacements
+    subsample_size = int(n_samples // 2)
+    if replacements:
+        subsample_size = n_samples      
+        
+    for _ in range(n_subsets):
+        idx = np.random.choice(
+            indices,
+            size=np.shape(range(subsample_size)),
+            replace=replacements)
+        X_ = X[idx]
+        y_ = y[idx]
+        subsets.append((X_, y_))
+    return subsets
+
+
 def add_intersect(X):
     """ 
     Adds a vector of "1" in front of a matrix:
@@ -124,7 +149,7 @@ def to_categorical(y, num_classes=None, dtype='float32'):
     categorical = np.reshape(categorical, output_shape)
     return categorical
 
-def minibatch(X,y, batchsize=256, shuffle=True):
+def minibatch(X,y=None, batchsize=256, shuffle=True):
     if y is not None:
         assert X.shape[0] == y.shape[0]
     indices = np.arange(X.shape[0])

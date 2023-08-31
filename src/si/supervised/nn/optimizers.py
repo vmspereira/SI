@@ -19,7 +19,15 @@ class Optimizer(ABC):
 
 
 class SGD(Optimizer):
+    """Stochastic Gradient Descent with momentum"""
     def __init__(self, learning_rate=0.01, momentum=0):
+        """Stochastic Gradient Descent with momentum.
+
+        Args:
+            learning_rate (float, optional): The learning rate. Defaults to 0.01.
+            momentum (int, optional):  The momentum to use when computing 
+                the exponential moving average (EMA) of the model's weights. Defaults to 0.
+        """
         self.learning_rate = learning_rate
         self.momentum = momentum
         self.w_updt = None
@@ -35,9 +43,18 @@ class SGD(Optimizer):
 
 
 class Adam(Optimizer):
-    def __init__(self, learning_rate=0.001, b1=0.9, b2=0.999):
+    def __init__(self, learning_rate=0.001, b1=0.9, b2=0.999, eps=1e-8):
+        """_summary_
+
+        Args:
+            learning_rate (float, optional): learning rate. Defaults to 0.001.
+            b1 (float, optional): The exponential decay rate for the 1st moment estimates. Defaults to 0.9.
+            b2 (float, optional): The exponential decay rate for the 2nd moment estimates. Defaults to 0.999.
+            eps (_type_, optional): A small constant for numerical stability. Defaults to 1e-8.
+        """
+        
         self.learning_rate = learning_rate
-        self.eps = 1e-8
+        self.eps = eps
         self.m = None
         self.v = None
         # Decay rates
@@ -63,6 +80,15 @@ class Adam(Optimizer):
 
 class NesterovAcceleratedGradient(Optimizer):
     def __init__(self, learning_rate=0.001, momentum=0.4):
+        """Nesterov Accelerated Gradient.
+        The Nesterov Accelerated Gradient method consists of a gradient descent step, 
+        followed by something that looks a lot like a momentum term, but isn’t exactly 
+        the same as that found in classical momentum.
+
+        Args:
+            learning_rate (float, optional): The learning rate. Defaults to 0.001.
+            momentum (float, optional): _description_. Defaults to 0.4.
+        """
         self.learning_rate = learning_rate
         self.momentum = momentum
         self.w_updt = np.array([])
@@ -83,6 +109,12 @@ class NesterovAcceleratedGradient(Optimizer):
 
 class Adagrad(Optimizer):
     def __init__(self, learning_rate=0.01):
+        """AMSGrad variant of this algorithm from the paper 
+        "On the Convergence of Adam and beyond".
+
+        Args:
+            learning_rate (float, optional): The learning rate. Defaults to 0.01.
+        """
         self.learning_rate = learning_rate
         self.G = None  # Sum of squares of the gradients
         self.eps = 1e-8
@@ -99,6 +131,17 @@ class Adagrad(Optimizer):
 
 class Adadelta(Optimizer):
     def __init__(self, rho=0.95, eps=1e-6):
+        """
+        AdaDelta is a stochastic optimization technique that allows for 
+        per-dimension learning rate method for SGD. 
+        It is an extension of Adagrad that seeks to reduce its aggressive, 
+        monotonically decreasing learning rate.
+
+        Args:
+            rho (float, optional): The decay rate. Defaults to 0.95.
+            eps (_type_, optional): Small floating point value used to maintain numerical stability. 
+                Defaults to 1e-6.
+        """
         self.E_w_updt = None  # Running average of squared parameter updates
         self.E_grad = None  # Running average of the squared gradient of w
         self.w_updt = None  # Parameter update
@@ -134,6 +177,12 @@ class Adadelta(Optimizer):
 
 class RMSprop(Optimizer):
     def __init__(self, learning_rate=0.01, rho=0.9):
+        """Root Mean Square propagation
+
+        Args:
+            learning_rate (float, optional): The learning rate. Defaults to 0.01.
+            rho (float, optional): Moving average parameter. Defaults to 0.9.
+        """
         self.learning_rate = learning_rate
         self.Eg = None  # Running average of the square gradients at w
         self.eps = 1e-8

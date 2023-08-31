@@ -117,14 +117,19 @@ class NN(Model):
 
         :param (str) loss: The loss function name.
         """
-        if loss in METRICS:
-            self.loss = METRICS[loss][0]
-            self.loss_prime = METRICS[loss][1]
-        else:
-            warnings.warn(
-                f"{loss} is not a valid loss."
-                f"Available losses are {list(METRICS.keys())}."
-            )
+        if isinstance(loss,str):
+            if loss in METRICS:
+                self.loss = METRICS[loss][0]
+                self.loss_prime = METRICS[loss][1]
+            else:
+                warnings.warn(
+                    f"{loss} is not a valid loss."
+                    f"Available losses are {list(METRICS.keys())}."
+                )
+        elif isinstance(loss, tuple):
+            self.loss = loss[0]
+            self.loss_prime = loss[1]
+
 
     def set_metric(self, metric):
         self.metric = metric
@@ -286,6 +291,26 @@ class Flatten(Layer):
 
     def __str__(self):
         return "Flatten"
+    
+
+class Reshape(Layer):
+    def __init__(self, shape):
+        """ Reshapes the input tensor into specified shape"""
+        self.prev_shape = None
+        self.shape = shape
+    
+    def initialize(self, optimizer):
+        pass
+    
+    def forward(self, X):
+        self.prev_shape = X.shape
+        return X.reshape((X.shape[0], ) + self.shape)
+
+    def backward(self, accum_grad):
+        return accum_grad.reshape(self.prev_shape)
+
+    def __str__(self):
+        return "Flatten"
 
 
 class Dropout(Layer):
@@ -314,11 +339,12 @@ class Dropout(Layer):
 class BatchNormalization(Layer):
     """Batch normalization.
     """
-    def __init__(self, momentum=0.99):
+    def __init__(self, input_shape, momentum=0.99):
         self.momentum = momentum
         self.eps = 0.01
         self.running_mean = None
         self.running_var = None
+        self.input_shape = input_shape
 
     def initialize(self, optimizer):
         # Initialize the parameters
@@ -371,3 +397,6 @@ class BatchNormalization(Layer):
             )
 
         return output_error
+
+    def __str__(self):
+        return f"BatchNormalization"

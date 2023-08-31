@@ -16,12 +16,12 @@ from .activation import Tanh
 class RNN(Layer):
     """A Vanilla Fully-Connected Recurrent Neural Network layer.
 
-    param int n_units: The number of hidden states in the layer.
-    param Activation activation: The activation function which will\
+    :param int n_units: The number of hidden states in the layer.
+    :param Activation activation: The activation function which will\
         be applied to the output of each state.
-    param int bptt_trunc: Decides how many time steps the gradient\
+    :param int bptt_trunc: Decides how many time steps the gradient\
         should be propagated backwards through states given the loss gradient for time step t.
-    param tuple input_shape: The expected input shape of the layer. For dense layers a single
+    :param tuple input_shape: The expected input shape of the layer. For dense layers a single
         digit specifying the number of features of the input. Must be specified if it is the
         first layer in the network.
     """
