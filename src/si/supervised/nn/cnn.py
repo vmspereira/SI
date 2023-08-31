@@ -7,7 +7,7 @@
 """Convolutional Layers"""
 # ---------------------------------------------------------------------------
 
-from .nn import Layer
+from .layers import Layer
 from .im2col import pad2D, im2col, col2im
 import numpy as np
 from copy import copy

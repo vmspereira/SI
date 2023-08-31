@@ -10,7 +10,7 @@
 import numpy as np
 from copy import copy
 import math
-from .nn import Layer
+from .layers import Layer
 from .activation import Tanh
 
 class RNN(Layer):
