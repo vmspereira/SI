@@ -12,17 +12,51 @@ from abc import ABC, abstractmethod
 
 
 class Optimizer(ABC):
-    """Define how to update the learned parameters"""
+    """Define how to update the learnable parameters"""
     @abstractmethod
     def update(self, w, grad_wrt_w):
         raise NotImplementedError
 
 
 class SGD(Optimizer):
-    """Stochastic Gradient Descent with momentum"""
+    
     def __init__(self, learning_rate=0.01, momentum=0):
         """Stochastic Gradient Descent with momentum.
 
+        Stochastic gradient descent is an efficient optimization algorithm especially
+        when the dataset is very large because of the low computational cost in each
+        iteration. Several applications of stochastic gradient descent are studied
+        in the literature in several scientific areas such as machine learning and
+        signal processing. Stochastic gradient descent estimates a
+        gradient in each iteration on a randomly selected sample (mini-batch) and
+        updates the model variable.
+        In machine learning the conventional gradient descent algorithm updates
+        the weights and biases in order to minimize the selected loss function and
+        is calculated by using the negative gradient of the loss function:
+
+            W_(t+1) = W_t - lr ∇E(W_t)
+
+        where t is the iteration number, lr the learning rate, W the parameters
+        and ∇E(W_t) the gradient of the loss function.
+        
+        In the conventional gradient descent algorithm, the loss function gradient
+        ∇E(W), is calculated by using the whole training set of the dataset at once,
+        but the stochastic gradient descent algorithm calculates the loss function
+        gradient and updates the parameters by using only a subset (mini-batch) of
+        the training data at each iteration.
+        
+        One disadvantage of the stochastic gradient descent algorithm is that it
+        can oscillate in the path of the gradient descent in the direction of the
+        optimum. The Stochastic Gradient Descent with Momentum uses a
+        momentum parameter in the parameter update equation in order to reduce
+        the oscillation. The stochastic gradient descent with momentum update equation
+        is expressed as:
+        
+            W_(t+1) = W_t - lr ∇E(W_t) + m (W_t - W_(t-1))
+        
+        where m ∈ [0,1) represents the momentum of the previous iteration of the
+        gradient to the current iteration.
+        
         Args:
             learning_rate (float, optional): The learning rate. Defaults to 0.01.
             momentum (int, optional):  The momentum to use when computing 
@@ -44,7 +78,19 @@ class SGD(Optimizer):
 
 class Adam(Optimizer):
     def __init__(self, learning_rate=0.001, b1=0.9, b2=0.999, eps=1e-8):
-        """_summary_
+        """Adam Optimizer
+        
+        Adam optimizer is an algorithm that uses an adaptive learning rate. Adam optimizer
+        has been applied in several deep learning techniques. During the algorithm process
+        it finds single adaptive learning rates for the individual parameters. The algorithm
+        name is derived by the adaptive moment calculation process of the algorithm.
+        The first and second moments are the mean and the variance, accordingly.
+        Adam optimizer implements exponentially moving averages for moment
+        calculation in each mini batch for every iteration. The update rules for
+        Adam optimizer gradient moving averages and the squared gradient
+        accordingly, are expressed by the following equations:
+        
+          
 
         Args:
             learning_rate (float, optional): learning rate. Defaults to 0.001.
@@ -179,6 +225,18 @@ class RMSprop(Optimizer):
     def __init__(self, learning_rate=0.01, rho=0.9):
         """Root Mean Square propagation
 
+        The stochastic gradient descent with momentum implements a single
+        learning rate factor for all parameters. Several optimization algorithms use
+        different learning rates for every parameter automatically adapting the loss
+        function in order to improve training. In a similar way, RMSProp (Initials
+        from root mean square propagation) implements a moving average of the
+        squares of the parameter gradients
+
+
+        The RMSProp algorithm decreases the learning rates when the parameters
+        have large gradients and increases the learning rates when the parameters
+        have small gradients.
+        
         Args:
             learning_rate (float, optional): The learning rate. Defaults to 0.01.
             rho (float, optional): Moving average parameter. Defaults to 0.9.
