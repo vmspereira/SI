@@ -11,7 +11,8 @@ import numpy as np
 from abc import abstractmethod
 from .layers import Layer
 
-class Activation(Layer):
+    
+class ActivationFunction(Layer):
     def __init__(self):
         """Activation layer.
         Activation "layers" allow NN to learn non linear functions, 
@@ -53,8 +54,7 @@ class Activation(Layer):
     def __str__(self):
         return "Activation"
 
-
-class Sigmoid(Activation):
+class Sigmoid(ActivationFunction):
     def __init__(self):
         """A logistic sigmoid activation function."""
         super().__init__()
@@ -79,7 +79,7 @@ class Sigmoid(Activation):
         return fn_x * (1 - fn_x) * (1 - 2 * fn_x)
 
 
-class ReLU(Activation):
+class ReLU(ActivationFunction):
     """A rectified linear activation function."""
 
     def __init__(self):
@@ -98,7 +98,7 @@ class ReLU(Activation):
         return np.zeros_like(x)
 
 
-class LeakyReLU(Activation):
+class LeakyReLU(ActivationFunction):
     """
     'Leaky' version of a rectified linear unit (ReLU).
     """
@@ -124,7 +124,7 @@ class LeakyReLU(Activation):
         return np.zeros_like(x)
 
 
-class Tanh(Activation):
+class Tanh(ActivationFunction):
     def __init__(self):
         """A hyperbolic tangent activation function."""
         super().__init__()
@@ -143,7 +143,7 @@ class Tanh(Activation):
         return -2 * tanh_x * (1 - tanh_x ** 2)
 
 
-class Affine(Activation):
+class Affine(ActivationFunction):
     def __init__(self, slope=1, intercept=0):
         """
         An affine activation function.
@@ -176,7 +176,7 @@ class Identity(Affine):
         return "Identity"
 
 
-class ELU(Activation):
+class ELU(ActivationFunction):
     def __init__(self, alpha=1.0):
         """
         An exponential linear unit (ELU).
@@ -197,7 +197,7 @@ class ELU(Activation):
         return np.where(x >= 0, np.zeros_like(x), self.alpha * np.exp(x))
 
 
-class Exponential(Activation):
+class Exponential(ActivationFunction):
     def __init__(self):
         """An exponential (base e) activation function"""
         super().__init__()
@@ -215,7 +215,7 @@ class Exponential(Activation):
         return np.exp(x)
 
 
-class SELU(Activation):
+class SELU(ActivationFunction):
     """
     A scaled exponential linear unit (SELU).
     """
@@ -241,7 +241,7 @@ class SELU(Activation):
         return np.where(x > 0, np.zeros_like(x), np.exp(x) * self.alpha * self.scale)
 
 
-class HardSigmoid(Activation):
+class HardSigmoid(ActivationFunction):
     def __init__(self):
         """
         A "hard" sigmoid activation function.
@@ -261,7 +261,7 @@ class HardSigmoid(Activation):
         return np.zeros_like(x)
 
 
-class SoftPlus(Activation):
+class SoftPlus(ActivationFunction):
     def __init__(self):
         """
         A softplus activation function.
@@ -283,7 +283,7 @@ class SoftPlus(Activation):
         return exp_x / ((exp_x + 1) ** 2)
 
 
-class SoftMax(Activation):
+class SoftMax(ActivationFunction):
     
     def __init__(self):
         super().__init__()
@@ -301,4 +301,40 @@ class SoftMax(Activation):
     
     
     
+functions = {
+    'sigmoid': Sigmoid(),
+    'relu': ReLU(),
+    'softmax': SoftMax(),
+    'softplus': SoftPlus(),
+    'hardsigmoid': HardSigmoid(),
+    'tanh': Tanh(),
+    'selu':SELU(),
+    'leakyrelu':LeakyReLU(),
+    'affine': Affine(),
+    'elu': ELU(),
+    'exp': Exponential(),
+        
+}
 
+class Activation(Layer):
+    
+    def __init__(self, function):
+        super().__init__()
+        if isinstance(function,str) and function in functions:
+            self.fun = functions[function]
+        else:
+            raise ValueError(f"The function name is not a string or is unknown."
+                             f"possible values are {list(functions.keys())}"
+                             )
+            
+    def initialize(self, optimizer):
+        pass
+
+    def forward(self, input):
+        return self.fun.forward(input)
+    
+    def backward(self, output_error):
+        return  self.fun.backward(output_error)
+    
+    def __str__(self):
+        return self.fun.__str__()
