@@ -9,7 +9,7 @@
 [cc-by-shield]: https://img.shields.io/badge/License-CC%20BY%204.0-lightgrey.svg
 # Intelligent Systems for Bioinformatics / Sistemas Inteligentes para Bioinformática
 
-A library of algorithms to grasp essential concepts on a Machine Learning curriculum.
+A library of algorithms to grasp essential concepts on a Machine Learning curriculum, Machine Learning from scratch using NumPy.
 The code is commented with the mathematical fundations needed to understand how the algoritms and models work.
 The first version of this repository was used as teaching tool in the Bioinformatics master at Universidade do Minho in 2021.
 
