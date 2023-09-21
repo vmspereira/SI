@@ -40,7 +40,8 @@ class LinearRegression(Model):
         self.is_fitted = True
 
     def train_closed(self, X, y):
-        """ Uses closed form linear algebra to fit the model. Prefered to GD.
+        """ Uses closed form linear algebra to fit the model. 
+            Prefered to GD when some assumptions are met.
             
             theta = inv(XT*X)*XT*y
             -----------------------------------------------------------------
@@ -90,7 +91,15 @@ class LinearRegression(Model):
             in the derivative resulting from adding the L2 regulation term.
             Note that the matrix is not an identity matrix as the first entry is 0.
             The regulatization is not applied to the intersect (bias) term. 
-            You may, as exercice, derive the closed form.        
+            You may, as exercice, derive the closed form.
+            
+            The closed form computation of weight can not be applyied in certain cases, such as,
+            when the det(XT X) is zero or when the number of data points is not large enought. 
+            Indeed, it can be demonstrated that when P >> N (The Curse of dimentionality), the
+            
+                 inv(XT X) ~ 1/det(XT X) -> inf
+                 
+            where P is the number of feature and N the number of data points.    
         """
         if self.lbd>0:
             n = X.shape[1]
