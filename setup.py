@@ -16,10 +16,10 @@ setup(
     install_requires=install_requirements,
     setup_requires=setup_requirements,
     tests_require=test_requirements,
-    author='',
-    author_email='',
+    author='Vítor Pereira',
+    author_email='vmsapereira@gmail.com',
     description='Sistemas inteligentes',
-    license='Apache License Version 2.0',
+    license='Attribution 4.0 International',
     keywords='',
     test_suite='tests',
 )
