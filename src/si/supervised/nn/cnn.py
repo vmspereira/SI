@@ -149,3 +149,49 @@ class MaxPooling2D(Pooling2D):
 
     def __str__(self):
         return "MaxPooling2D"
+
+
+class AveragePooling2D(Pooling2D):
+    
+    def pool(self, X_col):
+        output = np.mean(X_col, axis=0)
+        return output
+
+    def dpool(self, dX_col, dout_col, pool_cache):
+        
+        accum_grad_col = np.zeros((np.prod(self.pool_shape), dout_col.size))
+        accum_grad_col[:, range(dout_col.size)] = 1. / accum_grad_col.shape[0] * dout_col
+        return accum_grad_col
+
+    def __str__(self):
+        return "AveragePooling2D"
+
+
+class ConstantPadding2D(Layer):
+    
+    def __init__(self, padding, padding_value=0):
+        self.padding = padding
+        if not isinstance(padding[0], tuple):
+            self.padding = ((padding[0], padding[0]), padding[1])
+        if not isinstance(padding[1], tuple):
+            self.padding = (self.padding[0], (padding[1], padding[1]))
+        self.padding_value = padding_value
+
+    def forward(self, input):
+        output = np.pad(input,
+            pad_width=((0,0), (0,0), self.padding[0], self.padding[1]),
+            mode="constant",
+            constant_values=self.padding_value)
+        return output
+
+    def backward(self, output_error):
+        pad_top, pad_left = self.padding[0][0], self.padding[1][0]
+        height, width = self.input_shape[1], self.input_shape[2]
+        output_error = output_error[:, :, pad_top:pad_top+height, pad_left:pad_left+width]
+        return output_error
+
+    def initialize(self, optimizer):
+        pass
+
+    def __str__(self):
+        return "Padding2D"
