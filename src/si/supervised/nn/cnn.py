@@ -32,7 +32,7 @@ class Conv2D(Layer):
         self.w_opt = copy(optimizer)
         self.b_opt = copy(optimizer)
 
-    def forward(self, input):
+    def forward(self, input, training=True):
         s = self.stride
         self.X_shape = input.shape
         _, p = pad2D(input, self.padding, self.weights.shape[:2], s)
@@ -95,7 +95,7 @@ class Pooling2D(Layer):
     def initialize(self, optimizer):
         pass
 
-    def forward(self, input):
+    def forward(self, input, training=True):
         self.X_shape = input.shape
         n, h, w, d = input.shape
 
@@ -177,7 +177,7 @@ class ConstantPadding2D(Layer):
             self.padding = (self.padding[0], (padding[1], padding[1]))
         self.padding_value = padding_value
 
-    def forward(self, input):
+    def forward(self, input, training=True):
         output = np.pad(input,
             pad_width=((0,0), (0,0), self.padding[0], self.padding[1]),
             mode="constant",

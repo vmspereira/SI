@@ -88,19 +88,20 @@ class NN(Model):
     def set_metric(self, metric):
         self.metric = metric
 
-    def forward(self,input):
+    def forward(self,input, training=True):
         """
         Forward propagation
         Propagates values across all layers from the input to the final output.
         Args:
             input (np.array): the input
+            training (bool): if the forward pass is for training.
 
         Returns:
             np.array: the output
         """
         output_batch = input
         for layer in self.layers:
-                    output_batch = layer.forward(output_batch)
+                    output_batch = layer.forward(output_batch,training)
         return output_batch
         
     def fit(self, dataset, **kwargs):
@@ -163,7 +164,7 @@ class NN(Model):
 
     def predict(self, input_data):
         assert self.is_fitted, "Model must be fit before predicting"
-        output = self.forward(input_data)
+        output = self.forward(input_data, training=False)
         return output
 
     def cost(self, X=None, y=None):

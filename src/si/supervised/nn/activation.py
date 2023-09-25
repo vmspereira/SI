@@ -39,7 +39,7 @@ class ActivationFunction(Layer):
     def initialize(self, optimizer):
         pass
 
-    def forward(self, input_data):
+    def forward(self, input_data, training=True):
         self.input = input_data
 
         # apply the activation function to the input

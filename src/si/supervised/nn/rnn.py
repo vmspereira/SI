@@ -48,7 +48,7 @@ class RNN(Layer):
         self.V_opt = copy(optimizer)
         self.W_opt = copy(optimizer)
 
-    def forward(self, input):
+    def forward(self, input, training=True):
         self.layer_input = input
         batch_size, timesteps, input_dim = input.shape
 

@@ -25,7 +25,7 @@ class Layer(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def forward(self, input):
+    def forward(self, input, training = True):
         """Apply the layer 'function' to a given input
         returning an output.
         """
@@ -79,7 +79,7 @@ class Dense(Layer):
         self.w_opt = copy(optimizer)
         self.b_opt = copy(optimizer)
 
-    def forward(self, input_data):
+    def forward(self, input_data, training=True):
         self.input = input_data
         self.output = np.dot(self.input, self.weights) + self.bias
         return self.output
@@ -125,7 +125,7 @@ class Flatten(Layer):
        Flattens all but the 1st dimention.
     """
 
-    def forward(self, input):
+    def forward(self, input, training=True):
         self.input_shape = input.shape
         # flattens all but the 1st dimention
         output = input.reshape(input.shape[0], -1)
@@ -150,7 +150,7 @@ class Reshape(Layer):
     def initialize(self, optimizer):
         pass
     
-    def forward(self, X):
+    def forward(self, X, training=True):
         self.prev_shape = X.shape
         return X.reshape((X.shape[0], ) + self.shape)
 
@@ -174,10 +174,13 @@ class Dropout(Layer):
     def initialize(self, optimizer):
         pass
 
-    def forward(self, input):
-        self.mask = np.random.binomial(1, self.prob, size=input.shape) / self.prob
-        out = input * self.mask
-        return out.reshape(input.shape)
+    def forward(self, input, training=True):
+        if training:
+            self.mask = np.random.binomial(1, self.prob, size=input.shape) / self.prob
+            out = input * self.mask
+            return out.reshape(input.shape)
+        else:
+            return input
 
     def backward(self, output_error):
         dX = output_error * self.mask
@@ -227,18 +230,22 @@ class BatchNormalization(Layer):
         self.gamma_opt  = copy(optimizer)
         self.beta_opt = copy(optimizer)
 
-    def forward(self, input):
+    def forward(self, input, training=True):
 
         # Initialize running mean and variance if first run
         if self.running_mean is None:
             self.running_mean = np.mean(input, axis=0)
             self.running_var = np.var(input, axis=0)
 
-        mean = np.mean(input, axis=0)
-        var = np.var(input, axis=0)
-        self.running_mean = self.momentum * self.running_mean + (1 - self.momentum) * mean
-        self.running_var = self.momentum * self.running_var + (1 - self.momentum) * var
-    
+        if training:
+            mean = np.mean(input, axis=0)
+            var = np.var(input, axis=0)
+            self.running_mean = self.momentum * self.running_mean + (1 - self.momentum) * mean
+            self.running_var = self.momentum * self.running_var + (1 - self.momentum) * var
+        else:
+            mean = self.running_mean
+            var = self.running_var
+            
         # Statistics saved for backward pass
         self.X_centered = input - mean
         self.stddev_inv = 1 / np.sqrt(var + self.eps)
