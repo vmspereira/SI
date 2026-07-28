@@ -11,14 +11,25 @@ import numpy as np
 import pandas as pd
 
 
-def confusion_matrix(true_y, predict_y, format='df'):
+def confusion_matrix(true_y, predict_y, output_format='df'):
     """
-    Computes a confusion matrix
+    Computes a confusion matrix: counts of (true class, predicted class) pairs.
+
+    Rows are the true labels and columns the predicted ones, so the diagonal
+    holds the correct predictions and everything off it is a specific kind of
+    mistake -- which is what accuracy alone cannot tell you.
+
+    :param true_y: array-like of ground-truth labels.
+    :param predict_y: array-like of predicted labels.
+    :param str output_format: 'df' returns a pandas.DataFrame; any other value
+        returns the crosstab unchanged. (Named `output_format` rather than
+        `format` so it does not shadow the `format` builtin.)
+    :returns: the confusion matrix.
     """
     cm = pd.crosstab(true_y, predict_y,
                      rownames=["True values"],
                      colnames=["Predicted values"])
-    if format == 'df':
+    if output_format == 'df':
         return pd.DataFrame(cm)
     else:
         return cm

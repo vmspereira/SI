@@ -38,7 +38,8 @@ class NN(Model):
         :param int epochs: Default number of epochs.
         :param int batch_size: Default minibach size
         :param Optimizer optimizer: The optimizer.
-        :param bool verbose: If all loss (and quality metric) are to be outputed. Default True.
+        :param bool verbose: If the loss (and quality metric) are printed during
+            training, every `step` epochs. False trains silently. Default True.
         :param str loss: The loss function. Default `MSE`.
         :param callable metric: The quality metric. Default None.
         :param int step: the verbose steps. Default 100.
@@ -70,10 +71,41 @@ class NN(Model):
         (first added = first applied). initialize() hands the layer the
         optimizer so it can allocate weights and per-parameter optimizer
         state up front.
+
+        A layer may leave its `input_size` as None, in which case it is filled
+        in from the output size of the layer before it -- so
+
+            net.add(Dense(4, 8))
+            net.add(Dense(None, 3))
+
+        is enough, instead of repeating the 8. Only the first layer has to state
+        its input size, since nothing precedes it to infer from.
         """
-        # TODO: add input size from previous layer output size
+        if getattr(layer, 'input_size', 'absent') is None:
+            inferred = self._previous_output_size()
+            if inferred is None:
+                raise ValueError(
+                    "Cannot infer input_size for the first layer of the "
+                    "network: there is no preceding layer to take an output "
+                    "size from. Give the first layer an explicit input_size."
+                )
+            layer.input_size = inferred
         layer.initialize(self.optimizer)
         self.layers.append(layer)
+
+    def _previous_output_size(self):
+        """The output size of the most recent layer that declares one.
+
+        Walks backwards because shape-preserving layers -- activations,
+        Dropout, BatchNormalization -- carry no output size of their own, so
+        `Dense(4, 8), Tanh(), Dense(None, 3)` has to look past the Tanh and
+        find the 8.
+        """
+        for layer in reversed(self.layers):
+            size = getattr(layer, 'output_size', None)
+            if size is not None:
+                return size
+        return None
 
     def set_loss(self, loss):
         """Changes the loss function.
@@ -189,12 +221,14 @@ class NN(Model):
             self.history[epoch] = (err, score)
 
             # verbosity
-            if epoch % self.step == 0:
-                s = f"epoch {epoch}/{epochs} loss={err}{score_s}"
-                if self.verbose:
-                    print(s)
-                else:
-                    print(s, end="\r")
+            #
+            # verbose=False now prints NOTHING. It used to still print, just
+            # with end="\r" so each line overwrote the previous one, which made
+            # the flag mean "print compactly" rather than "be quiet" -- there
+            # was no way to silence training at all short of setting
+            # `step` higher than `epochs`.
+            if self.verbose and epoch % self.step == 0:
+                print(f"epoch {epoch}/{epochs} loss={err}{score_s}")
 
         self.is_fitted = True
 
