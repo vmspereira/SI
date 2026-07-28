@@ -122,8 +122,6 @@ class RNN(Layer):
             # Chain rule: error at output_t flows back through V, then
             # through the activation derivative, to reach state_input_t.
             grad_wrt_state = accum_grad[:, t].dot(self.V) * self.activation.prime(self.state_input[:, t])
-            # Gradient w.r.t the layer input x_t (state_input_t = U x_t + ...).
-            accum_grad_next[:, t] = grad_wrt_state.dot(self.U)
             # Update gradient w.r.t W and U by backprop. from time step t for at most
             # self.bptt_trunc number of time steps.
             # This inner loop walks backwards through the chain of hidden
@@ -134,6 +132,16 @@ class RNN(Layer):
                 grad_U += grad_wrt_state.T.dot(self.layer_input[:, t_])
                 # dE/dW: state_input depends on the previous hidden state h_(t_-1)
                 grad_W += grad_wrt_state.T.dot(self.states[:, t_-1])
+                # dE/dx_(t_): state_input_(t_) = U x_(t_) + W h_(t_-1).
+                #
+                # This has to ACCUMULATE (+=) inside the inner loop, not be
+                # assigned once outside it. Input x_(t_) reaches the loss by
+                # many routes: directly through output_(t_), and also through
+                # h_(t_) -> h_(t_+1) -> ... -> output at every later step.
+                # Assigning only the direct route left dE/dx wrong at every
+                # timestep except the last, which is where a finite-difference
+                # check catches it.
+                accum_grad_next[:, t_] += grad_wrt_state.dot(self.U)
                 # Calculate gradient w.r.t previous state: propagate through
                 # W and the previous step's activation derivative (this is
                 # where vanishing/exploding gradients come from in RNNs).
