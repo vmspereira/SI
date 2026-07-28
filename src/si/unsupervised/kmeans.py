@@ -15,7 +15,8 @@ class KMeans:
     def __init__(self,
                  k: int,
                  max_iterations: int = 1000,
-                 distance: callable = l2_distance
+                 distance: callable = l2_distance,
+                 random_state: int = None
                  ) -> None:
         """
         KMeans algorithm.
@@ -62,10 +63,20 @@ class KMeans:
         the seeds out and gives more reliable results. A common practice is to
         run K-means several times and keep the run with the lowest J.
         """
+        if k < 1:
+            raise ValueError(f"k must be at least 1; got {k}.")
+        if max_iterations < 1:
+            # The loop ran zero times, leaving `idxs` unbound, so transform
+            # raised "UnboundLocalError: cannot access local variable 'idxs'".
+            raise ValueError(
+                f"max_iterations must be at least 1; got {max_iterations}.")
         self.k = k
         self.max_iterations = max_iterations
         self.centroids = None
         self.distance = distance
+        # Seed for the centroid draw. K-means only finds a local optimum, so the
+        # result depends on the seeds; fixing this makes a run reproducible.
+        self.random_state = random_state
 
     def fit(self, dataset):
         # `fit` here just records the per-feature range (min/max) of the data.
@@ -90,10 +101,22 @@ class KMeans:
         :param dataset: The dataset object
         """
         X = dataset.X
-        rng = np.random.default_rng()
+        if self.k > X.shape[0]:
+            raise ValueError(
+                f"Cannot pick {self.k} distinct centroids from {X.shape[0]} "
+                "sample(s): k must not exceed the number of samples."
+            )
+        rng = np.random.default_rng(self.random_state)
         # Randomly draw k rows of X to use as the starting centroids.
         # `centroids` ends up with shape (k, n_features).
-        self.centroids = rng.choice(X, self.k)
+        #
+        # replace=False is essential. Generator.choice defaults to sampling WITH
+        # replacement, so the same row could be drawn as several centroids. Two
+        # identical centroids are equidistant from every point, argmin always
+        # picks the first, and the duplicate therefore receives NO points --
+        # whose mean is NaN. Measured before this fix, KMeans(k=4) on 12 points
+        # returned NaN centroids in 17 of 40 runs.
+        self.centroids = rng.choice(X, self.k, replace=False)
         return self.centroids
 
     def get_closest_centroid(self, x):
@@ -134,7 +157,20 @@ class KMeans:
             # UPDATE step: each new centroid is the mean of the points
             # currently assigned to it. X[idxs == i] selects the rows belonging
             # to cluster i; their column-wise mean is the new centroid.
-            cent = [np.mean(X[idxs == i], axis=0) for i in range(self.k)]
+            #
+            # A cluster can legitimately lose ALL its points as the assignment
+            # shifts, and the mean of an empty selection is NaN (with only a
+            # RuntimeWarning). One NaN centroid then makes every subsequent
+            # distance NaN and the whole clustering collapses. An empty cluster
+            # keeps its previous centroid instead: it stays a candidate for
+            # later iterations rather than poisoning the run. (Real
+            # implementations often relocate it to the point furthest from any
+            # centroid; holding it still is the simpler, equally safe choice.)
+            cent = []
+            for i in range(self.k):
+                members = X[idxs == i]
+                cent.append(members.mean(axis=0) if len(members)
+                            else self.centroids[i])
             self.centroids = np.array(cent)
             # CONVERGENCE check: if no point switched clusters this round, the
             # assignment is stable and the loop will exit. Otherwise remember

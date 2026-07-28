@@ -79,6 +79,97 @@ class TestKNN(unittest.TestCase):
         self.assertIsInstance(float(pred), float)
 
 
+class TestKNNCostMetric(unittest.TestCase):
+    """cost() must follow the mode the model was built in.
+
+    It took the classification branch unconditionally, so a regressor built with
+    classification=False was scored with accuracy_score -- comparing continuous
+    predictions for exact equality against continuous targets. That is
+    essentially always 0: a KNN predicting 0.5, 0.5, 1.5, 2.5 against targets
+    0, 1, 2, 3 reported cost() == 0.0 while behaving perfectly sensibly.
+    """
+
+    def setUp(self):
+        self.X = np.array([[0.], [1.], [2.], [3.]])
+
+    def test_regression_cost_is_a_mean_squared_error(self):
+        model = KNN(2, classification=False)
+        model.fit(Dataset(self.X, np.array([0., 1., 2., 3.])))
+        cost = model.cost()
+        self.assertGreater(cost, 0.0)     # was exactly 0.0 under accuracy
+        # k=2 averages each point with its nearest neighbour, giving predictions
+        # 0.5, 0.5, 1.5, 2.5 against 0, 1, 2, 3 -> errors 0.5 each -> MSE 0.25
+        self.assertAlmostEqual(cost, 0.25)
+
+    def test_classification_cost_is_still_accuracy(self):
+        model = KNN(2, classification=True)
+        model.fit(Dataset(self.X, np.array([0, 0, 1, 1])))
+        cost = model.cost()
+        self.assertGreaterEqual(cost, 0.0)
+        self.assertLessEqual(cost, 1.0)
+
+    def test_a_perfect_regressor_scores_zero(self):
+        # With k=1 every point is its own nearest neighbour, so the fit is exact
+        # and the MSE is 0 -- the opposite orientation to accuracy, which is what
+        # made the old behaviour ambiguous.
+        model = KNN(1, classification=False)
+        model.fit(Dataset(self.X, np.array([0., 1., 2., 3.])))
+        self.assertAlmostEqual(model.cost(), 0.0)
+
+    def test_num_neighbors_is_validated(self):
+        # k=0 produced an empty neighbour set and the vote failed with
+        # "ValueError: max() iterable argument is empty".
+        for bad in (0, -1):
+            with self.subTest(num_neighbors=bad):
+                with self.assertRaises(ValueError):
+                    KNN(bad)
+
+
+class TestLinearRegressionRankDeficient(unittest.TestCase):
+    """The closed form used np.linalg.inv, which cannot handle collinearity."""
+
+    def setUp(self):
+        rng = np.random.RandomState(0)
+        self.X = rng.randn(40, 3)
+        self.y = self.X @ np.array([2., -1., 0.5]) + 5
+
+    def test_a_duplicated_feature_no_longer_raises(self):
+        # X.T @ X is singular here, and inv raised "LinAlgError: Singular
+        # matrix". pinv returns the minimum-norm least-squares solution, which is
+        # the right answer for a rank-deficient design.
+        X = np.hstack([self.X, self.X[:, :1]])
+        model = LinearRegression(lbd=0)
+        model.fit(Dataset(X, self.y))
+        self.assertTrue(np.isfinite(model.theta).all())
+        self.assertLess(model.cost(), 1e-20)
+
+    def test_well_posed_fits_are_unchanged(self):
+        # pinv agrees with inv exactly whenever the matrix IS invertible, so the
+        # ordinary case must still recover the coefficients exactly.
+        model = LinearRegression(lbd=0)
+        model.fit(Dataset(self.X, self.y))
+        np.testing.assert_allclose(model.theta, [5., 2., -1., 0.5], atol=1e-10)
+
+    def test_more_features_than_samples(self):
+        # Also rank-deficient, for the same reason.
+        rng = np.random.RandomState(1)
+        X = rng.randn(4, 8)
+        y = rng.randn(4)
+        model = LinearRegression(lbd=0)
+        model.fit(Dataset(X, y))
+        self.assertTrue(np.isfinite(model.theta).all())
+
+    def test_regularization_still_shrinks_towards_zero(self):
+        strong = LinearRegression(lbd=500)
+        strong.fit(Dataset(self.X, self.y))
+        plain = LinearRegression(lbd=0)
+        plain.fit(Dataset(self.X, self.y))
+        # the penalty excludes the intercept (identity[0, 0] = 0), so compare the
+        # slopes only
+        self.assertLess(np.abs(strong.theta[1:]).sum(),
+                        np.abs(plain.theta[1:]).sum())
+
+
 class TestLinearRegression(unittest.TestCase):
     def setUp(self):
         # Build a perfectly linear, NOISE-FREE target so the true parameters are
