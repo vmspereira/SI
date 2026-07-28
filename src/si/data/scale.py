@@ -40,6 +40,9 @@ class StandardScaler(Transformer):
         The mean of each feature in the training set.
     _var : numpy array of shape (n_features, )
         The variance of each feature in the training set.
+    _scale : numpy array of shape (n_features, )
+        The divisor actually used: sqrt(_var), except 1 wherever the variance is
+        zero so a constant feature does not divide by zero.
     """
 
     def fit(self, dataset):
@@ -55,6 +58,14 @@ class StandardScaler(Transformer):
         X = dataset.X
         self._mean = np.mean(X, axis=0)
         self._var = np.var(X, axis=0)
+        # The scale actually divided by. A CONSTANT feature has zero variance,
+        # so dividing by sqrt(var) produced NaN for that whole column and every
+        # model downstream silently trained on NaNs. A constant feature carries
+        # no information to rescale: centring already maps it to 0, so the scale
+        # is set to 1 and the column simply becomes zeros.
+        self._scale = np.sqrt(self._var)
+        self._scale = np.where(self._scale == 0, 1.0, self._scale)
+        return self
 
     def transform(self, dataset, inline=False):
         """
@@ -70,8 +81,10 @@ class StandardScaler(Transformer):
         # Apply z = (x - u) / s. np.sqrt(var) gives the standard deviation s.
         # The subtraction and division broadcast the per-feature mean/std
         # across every row, so each column is standardized independently.
+        assert hasattr(self, '_scale'), \
+            'StandardScaler must be fit before transforming'
         X = dataset.X
-        Z = (X - self._mean) / np.sqrt(self._var)
+        Z = (X - self._mean) / self._scale
 
         if inline:
             # Modify the dataset in place and return it.
@@ -103,8 +116,13 @@ class StandardScaler(Transformer):
         -------
         Dataset object
         """
-        # x = z * s + u, reusing the s and u learned during fit.
-        X = dataset.X * np.sqrt(self._var) + self._mean
+        # x = z * s + u, reusing the s and u learned during fit. The same
+        # guarded scale is used, so the round trip is exact for ordinary
+        # features; a constant feature is recovered from its mean alone (its
+        # spread was zero, so nothing was lost).
+        assert hasattr(self, '_scale'), \
+            'StandardScaler must be fit before inverse transforming'
+        X = dataset.X * self._scale + self._mean
         if inline:
             dataset.X = X
             return dataset

@@ -10,7 +10,6 @@ from .transformer import Transformer
 import numpy as np
 from scipy import stats
 from copy import copy
-import warnings
 
 
 class VarianceThreshold(Transformer):
@@ -30,16 +29,26 @@ class VarianceThreshold(Transformer):
         :param threshold: The non negative threshold value, defaults to 0.
         :type threshold: int, optional
         """
+        # A negative threshold used to only warn and then be kept, so
+        # `var > threshold` was true for everything and the transformer became a
+        # silent no-op -- it even retained the zero-variance features it exists
+        # to remove. Warning without acting is the worst of both, so reject it.
         if threshold < 0:
-            warnings.warn("The thershold must be a non-negative value.")
+            raise ValueError(
+                f"threshold must be non-negative (it is compared against a "
+                f"variance, which cannot be negative); got {threshold}."
+            )
         self.threshold = threshold
 
     def fit(self, dataset):
         # Compute the variance of every feature (one value per column).
         X = dataset.X
         self._var = np.var(X, axis=0)
+        return self
 
     def transform(self, dataset, inline=False):
+        assert hasattr(self, '_var'), \
+            'VarianceThreshold must be fit before transforming'
         X = dataset.X
         # Boolean mask: True for features we keep (variance above threshold).
         cond = self._var > self.threshold
@@ -131,7 +140,18 @@ def f_regress(dataset):
     # Standard formula turning r^2 into an F-statistic. The ratio
     # r^2 / (1 - r^2) is "explained over unexplained" variance; scaling by the
     # degrees of freedom makes it follow an F distribution.
-    F = corr_coef_squared / (1 - corr_coef_squared) * deg_of_freedom
+    #
+    # A perfectly correlated feature has r^2 == 1, leaving no unexplained
+    # variance and dividing by zero -- which returned inf. inf is not wrong in
+    # spirit (the evidence is unbounded) but it propagates into any later
+    # arithmetic, so it is capped at the largest finite float instead. Ranking is
+    # unaffected: such a feature still sorts above every other.
+    unexplained = 1 - corr_coef_squared
+    with np.errstate(divide='ignore', invalid='ignore'):
+        F = np.where(unexplained > 0,
+                     corr_coef_squared / np.where(unexplained > 0, unexplained, 1.0)
+                     * deg_of_freedom,
+                     np.finfo(float).max)
     # Convert each F into a p-value via the survival function (1 - CDF) of the
     # F distribution with (1, deg_of_freedom) degrees of freedom.
     p = stats.f.sf(F, 1, deg_of_freedom)
@@ -166,12 +186,29 @@ class SelectKBest(Transformer):
         # Score every feature with the chosen function (ANOVA for
         # classification, correlation-based F for regression).
         self.F, self.p = self.score_func(dataset)
+        n_features = dataset.X.shape[1]
+        if not 1 <= self.k <= n_features:
+            raise ValueError(
+                f"k must be between 1 and the number of features ({n_features}); "
+                f"got {self.k}. Note k=0 previously kept EVERY feature, because "
+                "argsort()[-0:] is the whole array rather than an empty slice."
+            )
+        return self
 
     def transform(self, dataset, inline=False):
+        assert hasattr(self, 'F'), 'SelectKBest must be fit before transforming'
         # identify the k features with higher F values.
-        # argsort returns indices that sort F ascending; [-self.k:] takes the
-        # last k, i.e. the k highest-scoring (most informative) features.
-        idxs = self.F.argsort()[-self.k:]
+        #
+        # A constant (zero-variance) feature makes the ANOVA degenerate and
+        # scores nan. np.argsort places nan LAST, i.e. exactly where the highest
+        # scores live, so `[-k:]` used to pick the uninformative columns FIRST:
+        # given F = [13.96, 0.11, 1.00, nan], k=1 selected the nan column and
+        # discarded the genuinely predictive one. Replacing nan with -inf sends
+        # those features to the bottom of the ranking, where they belong.
+        scores = np.where(np.isnan(self.F), -np.inf, self.F)
+        # argsort returns indices that sort scores ascending; [-self.k:] takes
+        # the last k, i.e. the k highest-scoring (most informative) features.
+        idxs = scores.argsort()[-self.k:]
         # Re-sort the kept indices so the selected columns stay in their
         # original feature order.
         idxs.sort()
