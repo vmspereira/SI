@@ -34,12 +34,26 @@ class Conv2D(Layer):
         every spatial position, which is what makes CNNs efficient and
         translation-aware.
 
-        :param input_shape: (in_rows, in_cols, in_ch) of a single example.
+        :param input_shape: (in_rows, in_cols, in_ch) of a single example. Only
+            the CHANNEL count is binding -- it sizes the kernels, and an input
+            with a different number of channels is rejected in forward. The
+            spatial dimensions are advisory: the convolution derives its output
+            size from whatever it is actually given, so a layer declared
+            (5, 5, 2) handles a 7x7x2 input correctly.
         :param kernel_shape: (fr, fc) spatial size of each filter.
         :param layer_depth: number of filters = number of output channels.
         :param stride: step (in pixels) between successive filter positions.
+            Must be >= 1; stride=0 previously raised a bare ZeroDivisionError
+            from the output-size formula.
         :param padding: int / tuple / "same" zero-padding (see im2col.pad2D).
         """
+        if len(input_shape) != 3:
+            raise ValueError(
+                "input_shape must be (in_rows, in_cols, in_ch) for a single "
+                f"example; got {input_shape}."
+            )
+        if not isinstance(stride, (int, np.integer)) or stride < 1:
+            raise ValueError(f"stride must be an integer >= 1; got {stride!r}.")
         self.input_shape = input_shape
         self.kernel_shape = kernel_shape
         self.in_ch = input_shape[2]
@@ -69,6 +83,20 @@ class Conv2D(Layer):
         every filter applied at every spatial position of every example.
         """
         s = self.stride
+        if input.ndim != 4:
+            raise ValueError(
+                "Conv2D expects an NHWC batch (n_examples, rows, cols, "
+                f"channels); got {input.ndim} dimension(s) {input.shape}."
+            )
+        if input.shape[3] != self.in_ch:
+            # A channel mismatch previously surfaced deep inside the matmul as
+            # "matmul: Input operand 1 has a mismatch in its core dimension",
+            # which says nothing about channels.
+            raise ValueError(
+                f"This Conv2D was built for {self.in_ch} input channel(s) "
+                f"(its kernels are shaped {self.weights.shape}), but the input "
+                f"has {input.shape[3]}."
+            )
         self.X_shape = input.shape  # cached for the backward pass
         # Resolve padding to a concrete 4-tuple (we only need p, not the
         # padded array -- im2col re-pads internally).

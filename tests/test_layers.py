@@ -136,6 +136,65 @@ class TestReshape(unittest.TestCase):
         self.assertTrue(np.allclose(grad, x))
 
 
+class TestReshapeGuards(unittest.TestCase):
+    def test_backward_before_forward_is_refused(self):
+        # prev_shape starts as None and arr.reshape(None) does NOT raise -- it
+        # returns the array with its existing shape. So this used to hand the
+        # previous layer a wrongly-shaped gradient, silently. Its siblings
+        # (Dropout, Flatten, pooling) at least raised an AttributeError.
+        with self.assertRaises(AssertionError):
+            Reshape((3, 2)).backward(np.ones((2, 3, 2)))
+
+    def test_round_trip_after_a_forward_pass(self):
+        layer = Reshape((3, 2))
+        x = np.arange(12, dtype=float).reshape(2, 6)
+        out = layer.forward(x)
+        self.assertEqual(out.shape, (2, 3, 2))
+        self.assertEqual(layer.backward(out).shape, x.shape)
+
+    def test_incompatible_target_shape_is_reported(self):
+        with self.assertRaises(ValueError):
+            Reshape((4, 4)).forward(np.random.rand(2, 6))
+
+
+class TestConv2DValidation(unittest.TestCase):
+    def test_stride_must_be_at_least_one(self):
+        # stride=0 reached the output-size formula and raised a bare
+        # ZeroDivisionError.
+        for bad in (0, -1, 1.5):
+            with self.subTest(stride=bad):
+                with self.assertRaises(ValueError):
+                    Conv2D((5, 5, 2), (3, 3), 3, stride=bad)
+
+    def test_input_shape_must_be_three_dimensional(self):
+        with self.assertRaises(ValueError):
+            Conv2D((5, 5), (3, 3), 3)
+
+    def test_channel_mismatch_names_the_channels(self):
+        # Previously surfaced deep inside the matmul as "Input operand 1 has a
+        # mismatch in its core dimension", which mentions nothing about channels.
+        layer = Conv2D((5, 5, 2), (3, 3), 3)
+        layer.initialize(SGD())
+        with self.assertRaises(ValueError) as ctx:
+            layer.forward(np.random.rand(1, 5, 5, 3))
+        self.assertIn('channel', str(ctx.exception))
+
+    def test_non_batched_input_is_rejected(self):
+        layer = Conv2D((5, 5, 2), (3, 3), 3)
+        layer.initialize(SGD())
+        with self.assertRaises(ValueError):
+            layer.forward(np.random.rand(5, 5, 2))
+
+    def test_declared_spatial_size_is_advisory(self):
+        # Only the channel count is binding. The convolution derives its output
+        # size from the input it is actually given, so a layer declared (5,5,2)
+        # handles a 7x7x2 input correctly -- documented rather than enforced.
+        layer = Conv2D((5, 5, 2), (3, 3), 3, stride=1, padding=0)
+        layer.initialize(SGD())
+        out = layer.forward(np.random.rand(1, 7, 7, 2))
+        self.assertEqual(out.shape, (1, 5, 5, 3))   # 7 - 3 + 1 = 5
+
+
 class TestDropout(unittest.TestCase):
     def test_inference_is_passthrough(self):
         # Dropout is only active during training. At inference (training=False)

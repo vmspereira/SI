@@ -216,6 +216,13 @@ class Reshape(Layer):
     def backward(self, accum_grad):
         # Reshape carries no gradient of its own; just restore the shape
         # the previous layer produced.
+        #
+        # prev_shape starts as None, and arr.reshape(None) does NOT raise -- it
+        # quietly returns the array with its existing shape. So calling backward
+        # before forward used to hand the previous layer a wrongly-shaped
+        # gradient with no indication anything was wrong.
+        assert self.prev_shape is not None, \
+            'Reshape.backward requires a forward pass first'
         return accum_grad.reshape(self.prev_shape)
 
     def __str__(self):
