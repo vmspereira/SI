@@ -86,6 +86,23 @@ class TestDense(unittest.TestCase):
         self.layer.backward(np.ones((5, 3)))
         self.assertFalse(np.allclose(before, self.layer.weights))
 
+    def test_set_weights_validates_shapes(self):
+        # Shapes used to be accepted unchecked, so a mismatch surfaced later as a
+        # broadcasting ValueError from inside forward, far from the assignment
+        # that caused it.
+        with self.assertRaises(ValueError):
+            self.layer.set_weights(np.zeros((9, 9)), np.zeros((1, 3)))
+        with self.assertRaises(ValueError):
+            self.layer.set_weights(np.zeros((4, 3)), np.zeros((1, 9)))
+
+    def test_set_weights_accepts_the_right_shapes(self):
+        weights = np.ones((4, 3))
+        bias = np.full((1, 3), 0.5)
+        self.layer.set_weights(weights, bias)
+        # a row of ones through all-ones weights sums the inputs, plus the bias
+        out = self.layer.forward(np.ones((1, 4)))
+        np.testing.assert_allclose(out, np.full((1, 3), 4.5))
+
 
 class TestFlatten(unittest.TestCase):
     def test_round_trip(self):
@@ -211,6 +228,140 @@ class TestBatchNormalization(unittest.TestCase):
         grad = self.layer.backward(np.ones_like(self.x))
         self.assertEqual(grad.shape, self.x.shape)
 
+    def test_backward_matches_numerical_gradient(self):
+        # BatchNorm's dE/dX is the most involved expression in this module: the
+        # batch mean and variance each depend on EVERY sample, so a sample's
+        # gradient also flows back through those shared statistics. Only its
+        # shape was checked before, which would not have caught a wrong term in
+        # the closed form. lr=0 freezes gamma/beta across the evaluations.
+        #
+        # The incoming error is RANDOM, not all-ones, and that is essential. The
+        # variance-path term is
+        #     X_centered * stddev_inv**2 * sum(output_error * X_centered)
+        # and X_centered sums to zero by construction, so with a constant error
+        # that whole sum is zero and the term vanishes: deleting it from the
+        # implementation would leave an all-ones test passing. A non-constant
+        # error keeps the term active, so it is genuinely exercised.
+        n_features = 3
+
+        def fresh():
+            layer = BatchNormalization(input_shape=(n_features,))
+            layer.initialize(SGD(learning_rate=0.0))
+            layer.gamma = np.array([1.3, 0.7, 2.0])
+            layer.beta = np.array([0.5, -1.0, 0.2])
+            return layer
+
+        np.random.seed(0)
+        x = np.random.randn(5, n_features) * 2 + 1
+        error = np.random.randn(5, n_features)
+
+        layer = fresh()
+        layer.forward(x, training=True)
+        analytic = layer.backward(error.copy())
+
+        h = 1e-6
+        numerical = np.zeros_like(x)
+        for idx in np.ndindex(x.shape):
+            up, down = x.copy(), x.copy()
+            up[idx] += h
+            down[idx] -= h
+            # E = sum(output * error), so dE/d(output) is `error` -- matching what
+            # backward() is handed.
+            numerical[idx] = (
+                (fresh().forward(up, training=True) * error).sum()
+                - (fresh().forward(down, training=True) * error).sum()) / (2 * h)
+
+        np.testing.assert_allclose(analytic, numerical, atol=1e-5)
+
+    def test_variance_path_term_is_exercised(self):
+        # Guards the test above against silently degenerating: with a constant
+        # incoming error the variance-path term is exactly zero, so the check
+        # would pass even with that term deleted. Assert the two cases really do
+        # differ, i.e. that a random error activates the term.
+        np.random.seed(0)
+        x = np.random.randn(5, 3) * 2 + 1
+
+        def grad(error):
+            layer = BatchNormalization(input_shape=(3,))
+            layer.initialize(SGD(learning_rate=0.0))
+            layer.forward(x, training=True)
+            return layer.backward(error)
+
+        constant = grad(np.ones((5, 3)))
+        varied = grad(np.random.randn(5, 3))
+        self.assertFalse(np.allclose(constant, varied))
+
+    def test_gamma_gradient_matches_numerical(self):
+        n_features = 3
+        gamma = np.array([1.3, 0.7, 2.0])
+        beta = np.array([0.5, -1.0, 0.2])
+        np.random.seed(1)
+        x = np.random.randn(5, n_features) * 2 + 1
+        error = np.random.randn(5, n_features)
+
+        def fresh(g):
+            layer = BatchNormalization(input_shape=(n_features,))
+            layer.initialize(SGD(learning_rate=0.0))
+            layer.gamma, layer.beta = g.copy(), beta.copy()
+            return layer
+
+        layer = fresh(gamma)
+        layer.forward(x, training=True)
+        # dE/dgamma = sum(dE/dY * X_norm) over the batch
+        analytic = np.sum(error * (layer.X_centered * layer.stddev_inv), axis=0)
+
+        h = 1e-6
+        numerical = np.zeros(n_features)
+        for j in range(n_features):
+            up, down = gamma.copy(), gamma.copy()
+            up[j] += h
+            down[j] -= h
+            numerical[j] = (
+                (fresh(up).forward(x, training=True) * error).sum()
+                - (fresh(down).forward(x, training=True) * error).sum()) / (2 * h)
+
+        np.testing.assert_allclose(analytic, numerical, atol=1e-5)
+
+    def test_low_variance_features_are_actually_normalized(self):
+        # eps sits INSIDE the square root, as 1/sqrt(var + eps), so once it is
+        # comparable to a feature's variance it dominates and the feature is left
+        # unnormalized. The old hardcoded eps=0.01 left a feature of standard
+        # deviation 0.01 at 0.095 instead of ~1 -- a layer whose entire job is
+        # normalization, not doing it.
+        np.random.seed(0)
+        x = np.random.randn(200, 3) * np.array([1.0, 0.1, 0.01])
+        layer = BatchNormalization(input_shape=(3,))
+        layer.initialize(SGD())
+        out = layer.forward(x, training=True)
+        np.testing.assert_allclose(out.std(axis=0), 1.0, atol=0.1)
+
+    def test_eps_is_configurable(self):
+        # Still adjustable upwards for very small batches, where the variance
+        # estimate itself is noisy.
+        self.assertAlmostEqual(BatchNormalization(input_shape=(2,)).eps, 1e-5)
+        self.assertAlmostEqual(
+            BatchNormalization(input_shape=(2,), eps=0.01).eps, 0.01)
+
+    def test_inference_before_training_is_refused(self):
+        # Initialising the running statistics on ANY first call meant an
+        # inference-only pass seeded them from the test batch and then normalized
+        # that batch by its own mean and variance -- exactly the leakage the
+        # running estimates exist to prevent, and silently.
+        layer = BatchNormalization(input_shape=(3,))
+        layer.initialize(SGD())
+        with self.assertRaises(RuntimeError):
+            layer.forward(np.random.rand(2, 3), training=False)
+
+    def test_inference_works_once_trained(self):
+        layer = BatchNormalization(input_shape=(3,))
+        layer.initialize(SGD())
+        layer.forward(np.random.rand(10, 3), training=True)
+        running_mean = layer.running_mean.copy()
+        out = layer.forward(np.random.rand(4, 3) + 50, training=False)
+        self.assertEqual(out.shape, (4, 3))
+        # frozen statistics: an inference pass must not move them
+        np.testing.assert_allclose(running_mean, layer.running_mean)
+
 
 class TestConv2D(unittest.TestCase):
     def setUp(self):
@@ -268,6 +419,69 @@ class TestConv2D(unittest.TestCase):
         analytic = layer.backward(np.ones_like(out))
         self.assertEqual(analytic.shape, x.shape)
         self.assertTrue(np.allclose(analytic, num, atol=1e-4))
+
+
+class TestConv2DGradientAcrossConfigurations(unittest.TestCase):
+    """The finite-difference check above uses one configuration (no padding,
+    stride 1). Padding and striding change the im2col index arithmetic, so they
+    are exercised here too -- these combinations were previously unverified.
+    """
+
+    def analytic_vs_numerical(self, padding, stride, in_size=6, kernel=3):
+        np.random.seed(1)
+        x = np.random.randn(2, in_size, in_size, 2)
+
+        seed_layer = Conv2D((in_size, in_size, 2), (kernel, kernel), 3,
+                            stride=stride, padding=padding)
+        seed_layer.initialize(SGD(learning_rate=0.0))
+        weights, bias = seed_layer.weights.copy(), seed_layer.bias.copy()
+
+        def fresh():
+            layer = Conv2D((in_size, in_size, 2), (kernel, kernel), 3,
+                           stride=stride, padding=padding)
+            layer.initialize(SGD(learning_rate=0.0))
+            layer.weights, layer.bias = weights.copy(), bias.copy()
+            return layer
+
+        layer = fresh()
+        out = layer.forward(x)
+        analytic = layer.backward(np.ones_like(out))
+
+        h = 1e-5
+        numerical = np.zeros_like(x)
+        for idx in np.ndindex(x.shape):
+            up, down = x.copy(), x.copy()
+            up[idx] += h
+            down[idx] -= h
+            numerical[idx] = (fresh().forward(up).sum()
+                              - fresh().forward(down).sum()) / (2 * h)
+        return analytic, numerical
+
+    def test_gradient_holds_with_padding_and_stride(self):
+        for padding, stride in [(0, 1), (1, 1), (2, 1), (0, 2)]:
+            with self.subTest(padding=padding, stride=stride):
+                analytic, numerical = self.analytic_vs_numerical(padding, stride)
+                np.testing.assert_allclose(analytic, numerical, atol=1e-4)
+
+
+class TestPoolingWindowValidation(unittest.TestCase):
+    def test_a_window_that_does_not_tile_the_input_is_rejected(self):
+        # A 3x3 window at stride 2 over a 6x6 input gives 2.5 windows, which is
+        # not representable. This used to raise a bare
+        # Exception("Invalid output dimension!") that named none of the three
+        # values responsible.
+        for layer in (MaxPooling2D(size=3, stride=2),
+                      AveragePooling2D(size=3, stride=2)):
+            with self.subTest(layer=type(layer).__name__):
+                with self.assertRaises(ValueError) as ctx:
+                    layer.forward(np.random.rand(1, 6, 6, 1))
+                message = str(ctx.exception)
+                self.assertIn('stride 2', message)
+                self.assertIn('6x6', message)
+
+    def test_a_window_that_tiles_exactly_is_accepted(self):
+        out = MaxPooling2D(size=2, stride=2).forward(np.random.rand(1, 6, 6, 1))
+        self.assertEqual(out.shape, (1, 3, 3, 1))
 
 
 class TestMaxPooling2D(unittest.TestCase):
