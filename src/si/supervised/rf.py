@@ -60,7 +60,7 @@ class RandomForest(Model):
         # Choose one random subset of the data for each tree
         subsets = get_random_subsets(X, y, self.n_estimators)
 
-        for i in self.progressbar(range(self.n_estimators)):
+        for i in range(self.n_estimators):
             X_subset, y_subset = subsets[i]
             # Feature bagging (select random subsets of the features)
             idx = np.random.choice(range(n_features), size=self.max_features, replace=True)
@@ -79,10 +79,11 @@ class RandomForest(Model):
         for i, tree in enumerate(self.trees):
             # Indices of the features that the tree has trained on
             idx = tree.feature_indices
-            # Make a prediction based on those features
-            prediction = tree.predict(X[:, idx])
-            y_preds[:, i] = prediction
-            
+            # DecisionTree.predict works one sample at a time, so predict each
+            # row of the (feature-bagged) input separately.
+            X_subset = X[:, idx]
+            y_preds[:, i] = [tree.predict(sample) for sample in X_subset]
+
         y_pred = []
         # For each sample
         for sample_predictions in y_preds:

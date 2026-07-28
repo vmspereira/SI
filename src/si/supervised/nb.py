@@ -53,11 +53,13 @@ class NaiveBayes(Model):
         self.dataset = dataset
         n = X.shape[0]
 
-        X_by_class = np.array([X[y == c] for c in np.unique(y)])
+        # one (n_samples_c, n_features) array per class; kept as a list because
+        # classes may have different sample counts (a ragged np.array is invalid)
+        X_by_class = [X[y == c] for c in np.unique(y)]
         self.prior = np.array([len(X_class) / n for X_class in X_by_class])
 
         counts = np.array([sub_arr.sum(axis=0) for sub_arr in X_by_class]) + self.alpha
-        self.lk = self.counts / counts.sum(axis=1).reshape(-1, 1)
+        self.lk = counts / counts.sum(axis=1).reshape(-1, 1)
         self.is_fitted = True
 
     def predict_proba(self, x):

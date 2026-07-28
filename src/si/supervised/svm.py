@@ -9,6 +9,7 @@
 
 import numpy as np
 from .model import Model
+from si.util import accuracy_score
 from cvxopt import matrix, solvers
 
 
@@ -126,3 +127,8 @@ class SVM(Model):
             prediction += self.intercept
             y_pred.append(np.sign(prediction))
         return np.array(y_pred)
+
+    def cost(self, X=None, y=None):
+        X = X if X is not None else self.dataset.X
+        y = y if y is not None else self.dataset.y
+        return accuracy_score(y, self.predict(X))
