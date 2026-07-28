@@ -123,6 +123,9 @@ class NaiveBayes(Model):
         X = X if X is not None else self.dataset.X
         y = y if y is not None else self.dataset.y
 
-        y_pred = np.ma.apply_along_axis(self.predict,
-                                        axis=0, arr=X.T)
-        return accuracy_score(y, y_pred)
+        # NaiveBayes.predict is a *batch* predictor (it operates on a 2D X and
+        # returns one label per row), so call it directly on X. The
+        # apply_along_axis bridge is only for the single-sample predictors
+        # (KNN, LinearRegression, ...); feeding a 1D column to predict here
+        # would break predict_proba's broadcasting.
+        return accuracy_score(y, self.predict(X))

@@ -131,6 +131,9 @@ class Adam(Optimizer):
         # Decay rates
         self.b1 = b1
         self.b2 = b2
+        # Time step (number of updates seen). Needed for bias correction, whose
+        # correction factor depends on how many updates have happened.
+        self.t = 0
 
     def update(self, w, grad_wrt_w):
         # If not initialized: first and second moment running averages.
@@ -138,15 +141,20 @@ class Adam(Optimizer):
             self.m = np.zeros(np.shape(grad_wrt_w))
             self.v = np.zeros(np.shape(grad_wrt_w))
 
+        # Advance the time step (t = 1 on the first update).
+        self.t += 1
+
         # 1st moment: EMA of the gradient (estimate of its mean).
         self.m = self.b1 * self.m + (1 - self.b1) * grad_wrt_w
         # 2nd moment: EMA of the squared gradient (estimate of its variance).
         self.v = self.b2 * self.v + (1 - self.b2) * np.power(grad_wrt_w, 2)
 
         # Bias correction: m and v are biased toward 0 because they were
-        # initialized at 0; dividing by (1 - b) rescales them.
-        m_hat = self.m / (1 - self.b1)
-        v_hat = self.v / (1 - self.b2)
+        # initialized at 0. The correction factor is (1 - b**t), which depends
+        # on the time step t: it is strongest early on (t small) and tends to 1
+        # as t grows, so the correction fades once the averages have warmed up.
+        m_hat = self.m / (1 - self.b1 ** self.t)
+        v_hat = self.v / (1 - self.b2 ** self.t)
 
         # Adaptive step: mean / sqrt(variance). eps avoids division by 0.
         self.w_updt = self.learning_rate * m_hat / (np.sqrt(v_hat) + self.eps)

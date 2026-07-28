@@ -32,6 +32,25 @@ def seed():
     np.random.seed(42)
 
 
+def naive_pool(x, size, stride, reduce):
+    # Straightforward nested-loop reference implementation of pooling, used to
+    # pin down the vectorised im2col version. `reduce` is np.max or np.mean.
+    n, h, w, d = x.shape
+    h_out = (h - size) // stride + 1
+    w_out = (w - size) // stride + 1
+    out = np.zeros((n, h_out, w_out, d))
+    for ni in range(n):
+        for i in range(h_out):
+            for j in range(w_out):
+                for di in range(d):
+                    window = x[ni,
+                               i * stride:i * stride + size,
+                               j * stride:j * stride + size,
+                               di]
+                    out[ni, i, j, di] = reduce(window)
+    return out
+
+
 class TestDense(unittest.TestCase):
     def setUp(self):
         # A fully-connected layer mapping 4 input features -> 3 outputs.
@@ -225,16 +244,25 @@ class TestConv2D(unittest.TestCase):
 class TestMaxPooling2D(unittest.TestCase):
     def setUp(self):
         # 2x2 pooling window with stride 2 -> non-overlapping windows that
-        # halve each spatial dimension.
+        # halve each spatial dimension. A non-square (4x6), multi-example,
+        # multi-channel input is used on purpose: earlier value/gradient bugs
+        # only showed up once d > 1 (and the axis handling only once h != w).
         seed()
         self.layer = MaxPooling2D(size=2, stride=2)
-        self.x = np.random.rand(2, 4, 4, 3)
+        self.x = np.random.rand(2, 4, 6, 3)
 
     def test_forward_shape(self):
-        # 2x2/stride-2 pooling halves height and width (4 -> 2) and leaves the
-        # channel dimension alone: (2, 4, 4, 3) -> (2, 2, 2, 3).
+        # 2x2/stride-2 pooling halves height and width and leaves the channel
+        # dimension alone: (2, 4, 6, 3) -> (2, 2, 3, 3).
         out = self.layer.forward(self.x)
-        self.assertEqual(out.shape, (2, 2, 2, 3))
+        self.assertEqual(out.shape, (2, 2, 3, 3))
+
+    def test_forward_matches_reference(self):
+        # Each output must equal the max over its window. This catches the
+        # channel-fold reshape bug that a shape-only assertion misses.
+        out = self.layer.forward(self.x)
+        ref = naive_pool(self.x, 2, 2, np.max)
+        self.assertTrue(np.allclose(out, ref))
 
     def test_backward_shape_matches_input(self):
         # Pooling has no parameters; backward only routes the gradient back to
@@ -243,19 +271,38 @@ class TestMaxPooling2D(unittest.TestCase):
         grad = self.layer.backward(np.ones_like(out))
         self.assertEqual(grad.shape, self.x.shape)
 
+    def test_backward_matches_numerical_gradient(self):
+        # For L = sum(pool(x)), dL/dX must route each output's gradient to the
+        # window element that won the max. Compare against a central-difference
+        # estimate (random continuous input makes exact ties measure-zero).
+        eps = 1e-5
+        num = np.zeros_like(self.x)
+        it = np.nditer(self.x, flags=["multi_index"])
+        while not it.finished:
+            idx = it.multi_index
+            xp = self.x.copy(); xp[idx] += eps
+            xm = self.x.copy(); xm[idx] -= eps
+            num[idx] = (naive_pool(xp, 2, 2, np.max).sum()
+                        - naive_pool(xm, 2, 2, np.max).sum()) / (2 * eps)
+            it.iternext()
+
+        out = self.layer.forward(self.x)
+        analytic = self.layer.backward(np.ones_like(out))
+        self.assertTrue(np.allclose(analytic, num, atol=1e-4))
+
 
 class TestAveragePooling2D(unittest.TestCase):
     def setUp(self):
         # Same geometry as max pooling, but each window outputs its mean instead
-        # of its maximum.
+        # of its maximum. Non-square, multi-channel input for the same reason.
         seed()
         self.layer = AveragePooling2D(size=2, stride=2)
-        self.x = np.random.rand(2, 4, 4, 3)
+        self.x = np.random.rand(2, 4, 6, 3)
 
     def test_forward_shape(self):
         # Like max pooling, 2x2/stride-2 halves the spatial dims.
         out = self.layer.forward(self.x)
-        self.assertEqual(out.shape, (2, 2, 2, 3))
+        self.assertEqual(out.shape, (2, 2, 3, 3))
 
     def test_forward_is_window_mean(self):
         # The output of average pooling is the mean over each window. A constant
@@ -267,11 +314,36 @@ class TestAveragePooling2D(unittest.TestCase):
         out = layer.forward(x)
         self.assertTrue(np.allclose(out, 7.0))
 
+    def test_forward_matches_reference(self):
+        # Each output must equal the mean over its window, for every channel.
+        out = self.layer.forward(self.x)
+        ref = naive_pool(self.x, 2, 2, np.mean)
+        self.assertTrue(np.allclose(out, ref))
+
     def test_backward_shape_matches_input(self):
         # Gradient w.r.t. the input must match the input shape.
         out = self.layer.forward(self.x)
         grad = self.layer.backward(np.ones_like(out))
         self.assertEqual(grad.shape, self.x.shape)
+
+    def test_backward_matches_numerical_gradient(self):
+        # Average pooling spreads each output gradient evenly over its window;
+        # for L = sum(pool(x)) every input element's gradient is 1/(size*size).
+        # Verify against a central-difference estimate.
+        eps = 1e-5
+        num = np.zeros_like(self.x)
+        it = np.nditer(self.x, flags=["multi_index"])
+        while not it.finished:
+            idx = it.multi_index
+            xp = self.x.copy(); xp[idx] += eps
+            xm = self.x.copy(); xm[idx] -= eps
+            num[idx] = (naive_pool(xp, 2, 2, np.mean).sum()
+                        - naive_pool(xm, 2, 2, np.mean).sum()) / (2 * eps)
+            it.iternext()
+
+        out = self.layer.forward(self.x)
+        analytic = self.layer.backward(np.ones_like(out))
+        self.assertTrue(np.allclose(analytic, num, atol=1e-4))
 
 
 class TestConstantPadding2D(unittest.TestCase):

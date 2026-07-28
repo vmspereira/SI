@@ -239,6 +239,15 @@ class TestNaiveBayes(unittest.TestCase):
         m.fit(Dataset(X, y))
         self.assertTrue(m.is_fitted)
 
+    def test_cost_is_training_accuracy(self):
+        # cost() must run (NaiveBayes.predict is a batch predictor, so it can be
+        # called directly on X -- the apply_along_axis bridge for single-sample
+        # predictors would break its broadcasting) and equal the training
+        # accuracy on the fitted data.
+        m = NaiveBayes()
+        m.fit(self.ds)
+        self.assertAlmostEqual(m.cost(), accuracy(self.y, m.predict(self.X)))
+
 
 class TestLDA(unittest.TestCase):
     def setUp(self):

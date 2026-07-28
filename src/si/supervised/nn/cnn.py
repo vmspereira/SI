@@ -217,9 +217,14 @@ class Pooling2D(Layer):
         # Reduce each column (max or mean). out: (h_out*w_out*n*d,).
         # max_idx caches which row won (max-pool) or None (avg-pool).
         out, self.max_idx = self.pool(self.X_col)
-        # Unflatten and restore NHWC: (d, h_out, w_out, n) -> (n, h_out, w_out, d).
-        out = out.reshape(d, h_out, w_out, n)
-        out = out.transpose(3, 1, 2, 0)
+        # Unflatten and restore NHWC. im2col lays the columns out as
+        # (out_row, out_col, n_ex) and the n_ex axis we folded in above is
+        # ordered (n, d) (d fastest, from the reshape of the (n, d, h, w)
+        # transpose), so `out` is flattened in (h_out, w_out, n, d) order.
+        # Reshape to exactly that, then transpose(2, 0, 1, 3) to land on NHWC
+        # (n, h_out, w_out, d). Getting this order right matters once d > 1.
+        out = out.reshape(h_out, w_out, n, d)
+        out = out.transpose(2, 0, 1, 3)
         return out
 
     def backward(self, output_error):
@@ -231,12 +236,14 @@ class Pooling2D(Layer):
         (avg-pool). dpool fills a column-form gradient, then col2im scatters it
         back to image coordinates (summing where windows overlapped).
         """
-        n, w, h, d = self.X_shape
+        n, h, w, d = self.X_shape  # NHWC -- keep the axis order straight
         # zero gradient buffer in column form, same shape as X_col.
         dX_col = np.zeros_like(self.X_col)
         # Flatten the incoming NHWC error to match the column ordering used in
-        # forward: dout_col is one gradient per output position.
-        dout_col = output_error.transpose(1, 2, 3, 0).ravel()
+        # forward. Forward's columns run (out_row, out_col, n, d), so transpose
+        # the NHWC error (n, h_out, w_out, d) -> (h_out, w_out, n, d) before
+        # ravelling: dout_col is one gradient per output position.
+        dout_col = output_error.transpose(1, 2, 0, 3).ravel()
 
         # Place each output gradient into its window (subclass-specific routing).
         dX = self.dpool(dX_col, dout_col, self.max_idx)
@@ -250,8 +257,9 @@ class Pooling2D(Layer):
             0,
             self.stride,
         )
-        # Back to the original NHWC input shape.
-        dX = dX.reshape(self.X_shape)
+        # col2im returns NCHW (n*d, 1, h, w); undo the channel fold done in
+        # forward -- (n, d, h, w) -> NHWC (n, h, w, d) -- to recover the input.
+        dX = dX.reshape(n, d, h, w).transpose(0, 2, 3, 1)
 
         return dX
 
