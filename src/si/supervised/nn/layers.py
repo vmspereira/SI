@@ -223,9 +223,24 @@ class Dropout(Layer):
 
         Note: here `prob` is the *keep* probability — each unit survives
         with probability `prob` and is dropped with probability 1 - prob.
+        Many frameworks use the opposite convention (the drop rate), which is
+        worth keeping in mind when porting a network: prob=0.2 here keeps only
+        20% of the units, it does not drop 20% of them.
 
-        :param (float) prob: The dropout probability. Defaults to 0.5.
+        :param (float) prob: The keep probability, in (0, 1]. Defaults to 0.5.
+            prob=1.0 keeps everything, making the layer a no-op.
         """
+        # Inverted dropout divides the mask by `prob`, so prob=0 is a division
+        # by zero: it produced an all-NaN mask that then poisoned the forward
+        # pass, the loss and every gradient, with only a RuntimeWarning. Reject
+        # it up front instead. prob=0 is meaningless anyway -- it would drop
+        # every unit and leave the layer with nothing to pass on.
+        if not 0 < prob <= 1:
+            raise ValueError(
+                "Dropout `prob` is the KEEP probability and must be in (0, 1]; "
+                "got {!r}. (Passing a drop RATE is the usual cause: to drop "
+                "20% of units use prob=0.8, not prob=0.2.)".format(prob)
+            )
         self.prob = prob
 
     def initialize(self, optimizer):
