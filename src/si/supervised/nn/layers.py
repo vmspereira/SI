@@ -88,14 +88,30 @@ class Dense(Layer):
 
     def forward(self, input_data, training=True):
         # Forward pass of the affine map  Y = X W + b
-        #   X (input)   : (batch_size, input_size)
+        #   X (input)   : (..., input_size)   -- any number of leading axes
         #   W (weights) : (input_size, output_size)
         #   b (bias)    : (1, output_size)  -> broadcast over the batch
-        #   Y (output)  : (batch_size, output_size)
-        # We cache the input because the backward pass needs it to form
-        # the weight gradient.
-        self.input = input_data
-        self.output = np.dot(self.input, self.weights) + self.bias
+        #   Y (output)  : (..., output_size)
+        #
+        # The map applies to the LAST axis, so anything in front of it is just a
+        # collection of vectors to transform: a batch of samples (batch, features),
+        # a batch of sequences (batch, timesteps, features), and so on. Those
+        # leading axes are flattened into one here and restored on the way out,
+        # which is how framework `Linear` layers work.
+        #
+        # Flattening matters for the BACKWARD pass, not this one: `np.dot` already
+        # broadcasts a 3-D input against a 2-D W correctly, which is why 3-D input
+        # appeared to work. But backward then computed
+        #     np.dot(self.input.T, output_error)
+        # with input.T of shape (d, t, b), producing a (d, t, t, out) "gradient"
+        # instead of (d, out), and summed the bias over the wrong axis. Collapsing
+        # to 2-D lets the original, correct maths serve every rank.
+        self.input_shape = np.shape(input_data)
+        self.input = np.reshape(input_data, (-1, self.input_size))
+        flat_output = np.dot(self.input, self.weights) + self.bias
+        # restore the leading axes: (..., output_size)
+        self.output = np.reshape(
+            flat_output, self.input_shape[:-1] + (self.output_size,))
         return self.output
 
     def backward(self, output_error):
@@ -112,18 +128,25 @@ class Dense(Layer):
         These are exactly the three lines below. dE/dX is the error this
         layer hands back to the layer before it (the chain continues).
         """
-        # weight gradient: (input_size, batch) x (batch, output_size)
+        # Flatten the incoming error the same way forward flattened the input, so
+        # the three formulas below are always the plain 2-D ones. Every position of
+        # every sequence is one more row contributing to the shared W and b.
+        flat_error = np.reshape(output_error, (-1, self.output_size))
+
+        # weight gradient: (input_size, rows) x (rows, output_size)
         #                  = (input_size, output_size), same shape as W
         # dE/dW = X.T * dE/dY
-        weights_error = np.dot(self.input.T, output_error)
-        # bias gradient: sum dE/dY over the batch axis -> (output_size,)
+        weights_error = np.dot(self.input.T, flat_error)
+        # bias gradient: sum dE/dY over the rows -> (output_size,)
         # (b is shared across all samples, so its gradient accumulates)
         # dE/dB = dE/dY
-        bias_error = np.sum(output_error, axis=0)
-        # input gradient: (batch, output_size) x (output_size, input_size)
-        #                 = (batch, input_size), same shape as the input X
+        bias_error = np.sum(flat_error, axis=0)
+        # input gradient: (rows, output_size) x (output_size, input_size)
+        #                 = (rows, input_size), then reshaped back to the caller's
+        # layout so the previous layer receives a gradient shaped like its output.
         # dE/dX, passed on to the previous layer
-        input_error = np.dot(output_error, self.weights.T)
+        input_error = np.reshape(np.dot(flat_error, self.weights.T),
+                                 self.input_shape)
 
         # updates the parameters according to a defined optimizer
         self.weights = self.w_opt.update(self.weights, weights_error)
@@ -451,3 +474,99 @@ class BatchNormalization(Layer):
 
     def __str__(self):
         return "BatchNormalization"
+
+
+class LayerNorm(Layer):
+    """Layer Normalization: normalizes each sample across its FEATURES.
+
+    BatchNormalization, directly above, normalizes each feature across the
+    BATCH. LayerNorm turns that ninety degrees: it normalizes each sample
+    across its own features. The difference is the whole point, so it is worth
+    being precise about which axis each one reduces over.
+
+    For an input of shape (..., features), LayerNorm computes, INDEPENDENTLY for
+    every position in the leading axes:
+
+        mu    = mean(x)              over the last axis
+        var   = var(x)               over the last axis
+        x_hat = (x - mu) / sqrt(var + eps)
+        out   = gamma * x_hat + beta
+
+    Three consequences follow, and they are why transformers use it:
+
+    * No batch statistics, so no running averages and no train/inference split.
+      A single sample normalizes exactly the same way as a batch of a thousand,
+      which BatchNorm cannot promise (see its running_mean/running_var).
+    * It is independent of batch size, so it still works when the batch is 1 --
+      where BatchNorm degenerates, because a single sample has zero variance.
+    * Each position of a sequence is normalized on its own, which is what you
+      want when positions are processed together but mean different things.
+
+    gamma and beta are learnable, one per feature, so the network can undo or
+    re-tune the normalization; starting at gamma=1, beta=0 makes the layer an
+    identity at the first step.
+
+    :param int features: size of the last axis (the feature dimension).
+    :param float eps: added to the variance before the square root, to avoid
+        dividing by zero on a constant sample. 1e-5, matching
+        BatchNormalization.
+    """
+
+    def __init__(self, features, eps=1e-5):
+        self.features = features
+        self.eps = eps
+
+    def initialize(self, optimizer):
+        # One scale and one shift per feature, shared across every position.
+        self.gamma = np.ones(self.features)
+        self.beta = np.zeros(self.features)
+        # Independent optimizer state per learnable tensor, as in every other
+        # layer here.
+        self.gamma_opt = copy(optimizer)
+        self.beta_opt = copy(optimizer)
+
+    def forward(self, input, training=True):
+        # `training` is accepted for interface compatibility but unused: with no
+        # batch statistics there is nothing to switch between.
+        mean = np.mean(input, axis=-1, keepdims=True)
+        var = np.var(input, axis=-1, keepdims=True)
+        # Cached for backward. stddev_inv is 1/sqrt(var + eps).
+        self.stddev_inv = 1.0 / np.sqrt(var + self.eps)
+        self.X_centered = input - mean
+        self.X_norm = self.X_centered * self.stddev_inv
+        return self.gamma * self.X_norm + self.beta
+
+    def backward(self, output_error):
+        # dE/dgamma and dE/dbeta accumulate over every position that shared them,
+        # i.e. every axis except the feature axis.
+        reduce_axes = tuple(range(output_error.ndim - 1))
+        grad_gamma = np.sum(output_error * self.X_norm, axis=reduce_axes)
+        grad_beta = np.sum(output_error, axis=reduce_axes)
+
+        # dE/dx. The mean and the variance are both functions of every feature of
+        # THIS sample, so a feature's gradient also travels back through those two
+        # shared statistics. Writing dx_hat = dE/dY * gamma, the standard result is
+        #
+        #   dE/dx = (1/sigma) * ( dx_hat
+        #                         - mean(dx_hat)
+        #                         - x_hat * mean(dx_hat * x_hat) )
+        #
+        # with both means taken over the feature axis. The three terms are the
+        # direct path, the path through the mean, and the path through the
+        # variance. The reduction is over the LAST axis here, where BatchNorm's
+        # equivalent reduces over the batch.
+        n = self.features
+        dX_norm = output_error * self.gamma
+        dX = self.stddev_inv * (
+            dX_norm
+            - np.mean(dX_norm, axis=-1, keepdims=True)
+            - self.X_norm * np.sum(dX_norm * self.X_norm, axis=-1, keepdims=True) / n
+        )
+
+        self.gamma = self.gamma_opt.update(self.gamma, grad_gamma)
+        self.beta = self.beta_opt.update(self.beta, grad_beta)
+
+        return dX
+
+    def __str__(self):
+        return f"LayerNorm({self.features})"

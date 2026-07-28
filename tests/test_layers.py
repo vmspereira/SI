@@ -17,6 +17,7 @@ from si.supervised.nn.layers import (
     Reshape,
     Dropout,
     BatchNormalization,
+    LayerNorm,
 )
 from si.supervised.nn.cnn import (
     Conv2D,
@@ -134,6 +135,314 @@ class TestReshape(unittest.TestCase):
         grad = layer.backward(out)
         self.assertEqual(grad.shape, x.shape)
         self.assertTrue(np.allclose(grad, x))
+
+
+class TestDenseHigherRank(unittest.TestCase):
+    """Dense applies to the LAST axis, whatever precedes it.
+
+    forward already appeared to work on 3-D input because np.dot broadcasts a
+    3-D array against a 2-D matrix. backward did not: np.dot(input.T, error)
+    with input.T of shape (d, t, b) produced a (d, t, t, out) "gradient" instead
+    of (d, out), and the bias was summed over the wrong axis. Transformers
+    project per position over (batch, seq, d_model), so this had to work first.
+    """
+
+    def analytic_vs_numerical(self, shape, input_size, output_size, seed=0):
+        rng = np.random.RandomState(seed)
+        x = rng.randn(*shape)
+        error = rng.randn(*(shape[:-1] + (output_size,)))
+
+        reference = Dense(input_size, output_size)
+        reference.initialize(SGD(learning_rate=0.0))
+        weights, bias = reference.weights.copy(), reference.bias.copy()
+
+        def fresh():
+            layer = Dense(input_size, output_size)
+            layer.initialize(SGD(learning_rate=0.0))
+            layer.weights, layer.bias = weights.copy(), bias.copy()
+            return layer
+
+        layer = fresh()
+        layer.forward(x)
+        analytic = layer.backward(error.copy())
+
+        h = 1e-6
+        numerical = np.zeros_like(x)
+        for idx in np.ndindex(x.shape):
+            up, down = x.copy(), x.copy()
+            up[idx] += h
+            down[idx] -= h
+            numerical[idx] = ((fresh().forward(up) * error).sum()
+                              - (fresh().forward(down) * error).sum()) / (2 * h)
+        return analytic, numerical
+
+    def test_gradient_matches_numerical_across_ranks(self):
+        # 2-D is the regression guard: Dense is used by every existing network,
+        # so the reshaping must not disturb the case that already worked.
+        for shape in [(5, 4), (2, 6, 4), (2, 3, 5, 4)]:
+            with self.subTest(shape=shape):
+                analytic, numerical = self.analytic_vs_numerical(shape, 4, 3)
+                self.assertEqual(analytic.shape, shape)
+                np.testing.assert_allclose(analytic, numerical, atol=1e-6)
+
+    def test_parameter_shapes_survive_a_3d_backward(self):
+        # The old bias gradient had shape (t, out) for 3-D input, which would
+        # quietly reshape the bias on the first update.
+        layer = Dense(4, 3)
+        layer.initialize(SGD(learning_rate=0.1))
+        x = np.random.RandomState(0).randn(2, 6, 4)
+        out = layer.forward(x)
+        layer.backward(np.random.RandomState(1).randn(*out.shape))
+        self.assertEqual(layer.weights.shape, (4, 3))
+        self.assertEqual(layer.bias.shape, (1, 3))
+
+    def test_a_3d_call_equals_applying_it_per_position(self):
+        layer = Dense(4, 3)
+        layer.initialize(SGD())
+        x = np.random.RandomState(2).randn(2, 6, 4)
+        whole = layer.forward(x)
+        per_position = np.stack([
+            np.stack([row @ layer.weights + layer.bias[0] for row in sequence])
+            for sequence in x])
+        np.testing.assert_allclose(whole, per_position)
+
+    def test_output_shape_keeps_the_leading_axes(self):
+        layer = Dense(4, 7)
+        layer.initialize(SGD())
+        self.assertEqual(layer.forward(np.zeros((2, 6, 4))).shape, (2, 6, 7))
+
+
+class TestLayerNorm(unittest.TestCase):
+    """LayerNorm normalises each sample across its FEATURES.
+
+    BatchNormalization normalises each feature across the BATCH. The axis is the
+    whole difference, and it is why LayerNorm needs no running statistics and no
+    train/inference split -- and why it still works when the batch is 1.
+    """
+
+    D = 5
+
+    def fresh(self, gamma=None, beta=None, eps=1e-5):
+        layer = LayerNorm(self.D, eps=eps)
+        layer.initialize(SGD(learning_rate=0.0))
+        if gamma is not None:
+            layer.gamma = gamma.copy()
+        if beta is not None:
+            layer.beta = beta.copy()
+        return layer
+
+    def test_normalises_along_the_feature_axis(self):
+        rng = np.random.RandomState(0)
+        x = rng.randn(4, 3, self.D) * 5 + 20
+        layer = LayerNorm(self.D)
+        layer.initialize(SGD())
+        out = layer.forward(x)
+        # gamma=1, beta=0 at init, so each POSITION should be standardised
+        np.testing.assert_allclose(out.mean(axis=-1), np.zeros((4, 3)), atol=1e-10)
+        np.testing.assert_allclose(out.std(axis=-1), np.ones((4, 3)), atol=1e-4)
+
+    def test_a_single_sample_normalises_fine(self):
+        # Where BatchNorm degenerates: one sample has zero variance across the
+        # batch, but plenty of variance across its own features.
+        layer = LayerNorm(self.D)
+        layer.initialize(SGD())
+        out = layer.forward(np.array([[1., 2., 3., 4., 5.]]))
+        self.assertTrue(np.isfinite(out).all())
+        self.assertAlmostEqual(float(out.mean()), 0.0, places=10)
+
+    def test_no_train_inference_difference(self):
+        # No batch statistics means nothing to switch between, unlike BatchNorm.
+        layer = LayerNorm(self.D)
+        layer.initialize(SGD())
+        x = np.random.RandomState(1).randn(3, self.D)
+        np.testing.assert_allclose(layer.forward(x, training=True),
+                                   layer.forward(x, training=False))
+
+    def test_gradient_matches_numerical(self):
+        gamma = np.array([1.3, 0.7, 2.0, 0.4, 1.1])
+        beta = np.array([0.5, -1.0, 0.2, 0.9, -0.3])
+        for shape in [(4, D_) for D_ in (5,)] + [(3, 6, 5)]:
+            with self.subTest(shape=shape):
+                rng = np.random.RandomState(1)
+                x = rng.randn(*shape) * 2 + 1
+                error = rng.randn(*shape)
+                layer = self.fresh(gamma, beta)
+                layer.forward(x)
+                analytic = layer.backward(error.copy())
+                h = 1e-6
+                numerical = np.zeros_like(x)
+                for idx in np.ndindex(x.shape):
+                    up, down = x.copy(), x.copy()
+                    up[idx] += h
+                    down[idx] -= h
+                    numerical[idx] = (
+                        (self.fresh(gamma, beta).forward(up) * error).sum()
+                        - (self.fresh(gamma, beta).forward(down) * error).sum()
+                    ) / (2 * h)
+                np.testing.assert_allclose(analytic, numerical, atol=1e-5)
+
+    def test_gamma_and_beta_gradients_match_numerical(self):
+        gamma = np.array([1.3, 0.7, 2.0, 0.4, 1.1])
+        beta = np.array([0.5, -1.0, 0.2, 0.9, -0.3])
+        rng = np.random.RandomState(2)
+        x = rng.randn(3, 6, self.D) * 2 + 1
+        error = rng.randn(3, 6, self.D)
+
+        layer = self.fresh(gamma, beta)
+        layer.forward(x)
+        axes = tuple(range(error.ndim - 1))
+        analytic_gamma = np.sum(error * layer.X_norm, axis=axes)
+        analytic_beta = np.sum(error, axis=axes)
+
+        h = 1e-6
+        for j in range(self.D):
+            with self.subTest(feature=j):
+                up, down = gamma.copy(), gamma.copy()
+                up[j] += h
+                down[j] -= h
+                numeric = ((self.fresh(up, beta).forward(x) * error).sum()
+                           - (self.fresh(down, beta).forward(x) * error).sum()) / (2 * h)
+                self.assertAlmostEqual(analytic_gamma[j], numeric, places=5)
+
+                up, down = beta.copy(), beta.copy()
+                up[j] += h
+                down[j] -= h
+                numeric = ((self.fresh(gamma, up).forward(x) * error).sum()
+                           - (self.fresh(gamma, down).forward(x) * error).sum()) / (2 * h)
+                self.assertAlmostEqual(analytic_beta[j], numeric, places=5)
+
+    def test_backward_updates_gamma_and_beta(self):
+        layer = LayerNorm(self.D)
+        layer.initialize(SGD(learning_rate=0.1))
+        x = np.random.RandomState(3).randn(4, self.D)
+        layer.forward(x)
+        before = (layer.gamma.copy(), layer.beta.copy())
+        layer.backward(np.random.RandomState(4).randn(4, self.D))
+        self.assertFalse(np.allclose(before[0], layer.gamma))
+        self.assertFalse(np.allclose(before[1], layer.beta))
+
+    def test_eps_is_configurable_and_small_by_default(self):
+        self.assertAlmostEqual(LayerNorm(4).eps, 1e-5)
+        self.assertAlmostEqual(LayerNorm(4, eps=0.1).eps, 0.1)
+
+
+def applied_gradient(make_layer, param_name, x, error, learning_rate=0.1):
+    """The gradient a layer ACTUALLY applied to one of its parameters.
+
+    Every other gradient check here freezes the optimizer (lr=0) and inspects
+    dE/dX, which says nothing about whether the parameter gradients are right.
+    Recomputing them in the test from one's own formula is no better: it checks
+    the test's arithmetic, not the layer's.
+
+    So recover what the layer applied, through the public interface. Plain SGD
+    with momentum=0 updates w <- w - lr * grad, hence
+
+        grad = (w_before - w_after) / lr
+
+    Corrupting a `grad_gamma` or a `weights_error` used to leave the entire suite
+    green; with this it does not.
+    """
+    layer = make_layer(SGD(learning_rate=learning_rate, momentum=0))
+    layer.forward(x)
+    before = np.array(getattr(layer, param_name), dtype=float, copy=True)
+    layer.backward(error.copy())
+    after = np.array(getattr(layer, param_name), dtype=float)
+    return (before - after) / learning_rate
+
+
+def numerical_parameter_gradient(make_layer, param_name, x, error, h=1e-6):
+    """Central-difference dE/d(param) for E = sum(output * error)."""
+    reference = make_layer(SGD(learning_rate=0.0))
+    base = np.array(getattr(reference, param_name), dtype=float, copy=True)
+    numerical = np.zeros_like(base)
+    for idx in np.ndindex(base.shape):
+        up_value, down_value = base.copy(), base.copy()
+        up_value[idx] += h
+        down_value[idx] -= h
+
+        up_layer = make_layer(SGD(learning_rate=0.0))
+        setattr(up_layer, param_name, up_value)
+        down_layer = make_layer(SGD(learning_rate=0.0))
+        setattr(down_layer, param_name, down_value)
+
+        numerical[idx] = ((up_layer.forward(x) * error).sum()
+                          - (down_layer.forward(x) * error).sum()) / (2 * h)
+    return numerical
+
+
+class TestAppliedParameterGradients(unittest.TestCase):
+    """Checks the gradients the layers actually apply to their parameters.
+
+    This closes a gap that spanned the whole suite: dE/dX was checked everywhere,
+    dE/dW and dE/dgamma nowhere. Deliberately corrupting Dense's weight gradient,
+    LayerNorm's grad_gamma or BatchNormalization's grad_gamma previously left all
+    403 tests passing.
+    """
+
+    def assert_parameter_gradient(self, make_layer, param_name, x, error,
+                                  places=5):
+        applied = applied_gradient(make_layer, param_name, x, error)
+        numerical = numerical_parameter_gradient(make_layer, param_name, x, error)
+        self.assertEqual(applied.shape, numerical.shape)
+        np.testing.assert_allclose(applied, numerical, atol=10 ** -places)
+
+    def test_dense_weight_and_bias_gradients(self):
+        rng = np.random.RandomState(0)
+        reference = Dense(4, 3)
+        reference.initialize(SGD())
+        weights, bias = reference.weights.copy(), reference.bias.copy()
+
+        def make_layer(optimizer):
+            layer = Dense(4, 3)
+            layer.initialize(optimizer)
+            layer.weights, layer.bias = weights.copy(), bias.copy()
+            return layer
+
+        # 2-D and 3-D: the 3-D case is what the flattening rework introduced.
+        for shape in [(5, 4), (2, 6, 4)]:
+            x = rng.randn(*shape)
+            error = rng.randn(*(shape[:-1] + (3,)))
+            with self.subTest(shape=shape, parameter='weights'):
+                self.assert_parameter_gradient(make_layer, 'weights', x, error)
+            with self.subTest(shape=shape, parameter='bias'):
+                self.assert_parameter_gradient(make_layer, 'bias', x, error)
+
+    def test_layernorm_gamma_and_beta_gradients(self):
+        rng = np.random.RandomState(1)
+        gamma = np.array([1.3, 0.7, 2.0, 0.4, 1.1])
+        beta = np.array([0.5, -1.0, 0.2, 0.9, -0.3])
+
+        def make_layer(optimizer):
+            layer = LayerNorm(5)
+            layer.initialize(optimizer)
+            layer.gamma, layer.beta = gamma.copy(), beta.copy()
+            return layer
+
+        for shape in [(4, 5), (3, 6, 5)]:
+            x = rng.randn(*shape) * 2 + 1
+            error = rng.randn(*shape)
+            with self.subTest(shape=shape, parameter='gamma'):
+                self.assert_parameter_gradient(make_layer, 'gamma', x, error)
+            with self.subTest(shape=shape, parameter='beta'):
+                self.assert_parameter_gradient(make_layer, 'beta', x, error)
+
+    def test_batchnorm_gamma_and_beta_gradients(self):
+        # Same gap existed here, from an earlier change.
+        rng = np.random.RandomState(2)
+        gamma = np.array([1.3, 0.7, 2.0])
+        beta = np.array([0.5, -1.0, 0.2])
+
+        def make_layer(optimizer):
+            layer = BatchNormalization(input_shape=(3,))
+            layer.initialize(optimizer)
+            layer.gamma, layer.beta = gamma.copy(), beta.copy()
+            return layer
+
+        x = rng.randn(6, 3) * 2 + 1
+        error = rng.randn(6, 3)
+        for parameter in ('gamma', 'beta'):
+            with self.subTest(parameter=parameter):
+                self.assert_parameter_gradient(make_layer, parameter, x, error)
 
 
 class TestReshapeGuards(unittest.TestCase):

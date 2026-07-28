@@ -170,9 +170,44 @@ def cross_entropy_prime(y_true, y_pred):
     return (y_pred - y_true) / m
 
 
-def softmax_cross_entropy(logits, y_true):
-    """Given model outputs (logits) and the indexes
-       of the true class label, computes the softmax cross entropy.
+def _flatten_logits(y_true, logits):
+    """Reduces (y_true, logits) of any rank to (rows,) integer labels and
+    (rows, n_classes) logits, plus the original logits shape.
+
+    A classifier scores (n_samples, n_classes); a language model scores
+    (n_samples, seq_len, vocab) with one label per position. Both are just a
+    collection of independent rows to be scored, so everything in front of the
+    class axis is flattened away.
+    """
+    logits = np.asarray(logits, dtype=float)
+    original_shape = logits.shape
+    flat_logits = logits.reshape(-1, original_shape[-1])
+    flat_true = np.asarray(y_true).reshape(-1).astype(int)
+    if len(flat_true) != flat_logits.shape[0]:
+        raise ValueError(
+            f"y_true has {len(flat_true)} label(s) but logits describe "
+            f"{flat_logits.shape[0]} position(s) (shape {original_shape}); each "
+            "position needs exactly one integer class label."
+        )
+    return flat_true, flat_logits, original_shape
+
+
+def softmax_cross_entropy(y_true, logits):
+    """Softmax cross entropy between integer class labels and raw logits.
+
+    Argument order is (y_true, y_pred), matching every other loss here and the
+    order `NN.fit` calls them in. It used to be declared the other way round,
+    (logits, y_true), so `NN(loss="softmax-cross-entropy")` silently passed the
+    two the wrong way and could not train at all.
+
+    Returns the MEAN over positions, a scalar, like mse and cross_entropy. It
+    previously returned one value per sample, which the training loop then stored
+    and printed as if it were a scalar.
+
+    :param y_true: integer class labels, shape (n_samples,) or (n_samples,
+        seq_len) -- one label per scored position, NOT one-hot.
+    :param logits: raw scores, shape (n_samples, n_classes) or
+        (n_samples, seq_len, n_classes).
 
     Note: the naive form, log(sum(exp(z))), overflows. exp(1000) is inf in
           float64, so a single large logit makes the whole loss inf. The fix is
@@ -185,28 +220,37 @@ def softmax_cross_entropy(logits, y_true):
           exp(...) <= 1 and finite. The result is mathematically identical --
           only the intermediate values are tamed.
     """
-    logits = np.asarray(logits, dtype=float)
-    true_class_logits = logits[np.arange(len(logits)), y_true]
+    flat_true, flat_logits, _ = _flatten_logits(y_true, logits)
+    true_class_logits = flat_logits[np.arange(len(flat_logits)), flat_true]
 
     # c = the per-row maximum, kept 2-D so it broadcasts over the class axis
-    shift = logits.max(axis=-1, keepdims=True)
-    log_sum_exp = shift[:, 0] + np.log(np.sum(np.exp(logits - shift), axis=-1))
-    return -true_class_logits + log_sum_exp
+    shift = flat_logits.max(axis=-1, keepdims=True)
+    log_sum_exp = shift[:, 0] + np.log(np.sum(np.exp(flat_logits - shift), axis=-1))
+    return float(np.mean(-true_class_logits + log_sum_exp))
 
 
-def softmax_cross_entropy_prime(logits, y_true):
+def softmax_cross_entropy_prime(y_true, logits):
     """Derivative of the softmax cross entropy w.r.t. the logits.
+
+    Same (y_true, y_pred) argument order as the loss itself, and the same
+    handling of a sequence axis. The result has the shape of `logits`, so it can
+    be fed straight into the network's backward pass.
+
+    The famously simple form: softmax(z) - onehot(y). Dividing by the number of
+    scored positions matches the mean reduction the loss applies, which is what
+    makes this the exact gradient of that scalar.
 
     Stabilised with the same shift as `softmax_cross_entropy`: subtracting the
     row max leaves the softmax values unchanged but keeps the exponentials
     finite.
     """
-    logits = np.asarray(logits, dtype=float)
-    ones_true_class = np.zeros_like(logits)
-    ones_true_class[np.arange(len(logits)), y_true] = 1
-    exps = np.exp(logits - logits.max(axis=-1, keepdims=True))
+    flat_true, flat_logits, original_shape = _flatten_logits(y_true, logits)
+    rows = flat_logits.shape[0]
+    ones_true_class = np.zeros_like(flat_logits)
+    ones_true_class[np.arange(rows), flat_true] = 1
+    exps = np.exp(flat_logits - flat_logits.max(axis=-1, keepdims=True))
     softmax = exps / exps.sum(axis=-1, keepdims=True)
-    return (-ones_true_class + softmax) / logits.shape[0]
+    return ((-ones_true_class + softmax) / rows).reshape(original_shape)
 
 
 def r2_score(y_true, y_pred):

@@ -4,3 +4,4 @@ from .activation import *
 from .cnn import *
 from .optimizers import *
 from .rnn import *
+from .attention import *
