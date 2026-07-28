@@ -23,6 +23,7 @@ from .im2col import pad2D, im2col, col2im
 import numpy as np
 from copy import copy
 
+
 class Conv2D(Layer):
     def __init__(self, input_shape, kernel_shape, layer_depth, stride=1, padding=0):
         """2D convolutional layer.
@@ -171,6 +172,7 @@ class Pooling2D(Layer):
     summary (max or mean) is taken *down each column*. Subclasses supply the
     summary (`pool`) and how to route the gradient back (`dpool`).
     """
+
     def __init__(self, size=2, stride=1):
         """:param size: side length of the (square) pooling window.
         :param stride: step between windows."""
@@ -330,9 +332,9 @@ class ConstantPadding2D(Layer):
         self.input_shape = input.shape
         # input is NHWC: pad the spatial dimensions (axes 1 and 2)
         output = np.pad(input,
-            pad_width=((0,0), self.padding[0], self.padding[1], (0,0)),
-            mode="constant",
-            constant_values=self.padding_value)
+                        pad_width=((0, 0), self.padding[0], self.padding[1], (0, 0)),
+                        mode="constant",
+                        constant_values=self.padding_value)
         return output
 
     def backward(self, output_error):
@@ -341,7 +343,7 @@ class ConstantPadding2D(Layer):
         # the forward np.pad) and hand back a gradient of the original size.
         pad_top, pad_left = self.padding[0][0], self.padding[1][0]
         height, width = self.input_shape[1], self.input_shape[2]
-        output_error = output_error[:, pad_top:pad_top+height, pad_left:pad_left+width, :]
+        output_error = output_error[:, pad_top:pad_top + height, pad_left:pad_left + width, :]
         return output_error
 
     def initialize(self, optimizer):

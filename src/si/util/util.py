@@ -12,9 +12,9 @@ import numpy as np
 ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXZ'
 
 
-def label_gen(n:int):
+def label_gen(n: int):
     import itertools
-    """ 
+    """
     Generates a list of n distinct labels similar to the ones
     on spreadsheets.
     Uses python yield for ease of computation.
@@ -48,6 +48,7 @@ def l1_distance(x, y):
     dist = (np.absolute(x - y)).sum(axis=1)
     return dist
 
+
 def l2_distance(x, y):
     """
     Computes the euclidean distance of a point (x) to a set of
@@ -61,7 +62,8 @@ def l2_distance(x, y):
     dist = ((x - y) ** 2).sum(axis=1)
     return dist
 
-def train_test_split(dataset, split:float=0.8):
+
+def train_test_split(dataset, split: float = 0.8):
     """
     Splits randomly a dataset into a train and test set.
 
@@ -70,7 +72,7 @@ def train_test_split(dataset, split:float=0.8):
     """
     from ..data import Dataset
     n = dataset.X.shape[0]
-    m = int(split*n)
+    m = int(split * n)
     arr = np.arange(n)
     np.random.shuffle(arr)
     train_mask = arr[:m]
@@ -79,6 +81,24 @@ def train_test_split(dataset, split:float=0.8):
     train = Dataset(dataset.X[train_mask], dataset.y[train_mask], dataset._xnames, dataset._yname)
     test = Dataset(dataset.X[test_mask], dataset.y[test_mask], dataset._xnames, dataset._yname)
     return train, test
+
+
+def predict_all(model, X):
+    """Predictions for every row of `X`, whichever convention `model` uses.
+
+    Models in this library disagree about what `predict` takes: some want a
+    single 1-D sample, others a whole 2-D batch (see `Model.predicts_batch`).
+    Anything that scores an arbitrary model has to cope with both, and the
+    shape of the data cannot settle it -- so read the model's declaration.
+
+    :param model: a fitted model.
+    :param X: numpy.array of shape (n_samples, n_features).
+    :returns: numpy.array with one prediction per row of X.
+    """
+    if getattr(model, 'predicts_batch', False):
+        return np.asarray(model.predict(X))
+    return np.asarray([model.predict(row) for row in X])
+
 
 def get_random_subsets(X, y, n_subsets, replacements=True):
     """ Return random subsets (with replacements) of the data """
@@ -91,8 +111,8 @@ def get_random_subsets(X, y, n_subsets, replacements=True):
     # Uses 50% of training samples without replacements
     subsample_size = int(n_samples // 2)
     if replacements:
-        subsample_size = n_samples      
-        
+        subsample_size = n_samples
+
     for _ in range(n_subsets):
         idx = np.random.choice(
             indices,
@@ -108,12 +128,13 @@ def add_intercept(X):
     """
     Adds a column of "1" in front of a matrix (the intercept/bias term):
 
-    | a b |  to  |1 a b | 
+    | a b |  to  |1 a b |
     | c d |      |1 c d |
     :param X: numpy.array
     :returns: numpy.array
     """
     return np.hstack((np.ones((X.shape[0], 1)), X))
+
 
 def sigmoid(z):
     """
@@ -122,6 +143,7 @@ def sigmoid(z):
     :returns: a numpy array
     """
     return 1 / (1 + np.exp(-z))
+
 
 def to_categorical(y, num_classes=None, dtype='float32'):
     """_summary_
@@ -148,11 +170,12 @@ def to_categorical(y, num_classes=None, dtype='float32'):
     categorical = np.reshape(categorical, output_shape)
     return categorical
 
-def minibatch(X,y=None, batchsize=256, shuffle=True):
+
+def minibatch(X, y=None, batchsize=256, shuffle=True):
     if y is not None:
         assert X.shape[0] == y.shape[0]
     indices = np.arange(X.shape[0])
-    batch_size = batchsize if batchsize < X.shape[0] else X.shape[0]  
+    batch_size = batchsize if batchsize < X.shape[0] else X.shape[0]
     if shuffle:
         np.random.shuffle(indices)
     for start_idx in range(0, X.shape[0] - batch_size + 1, batch_size):

@@ -12,19 +12,19 @@ import numpy as np
 
 
 class KNN(Model):
-    def __init__(self, num_neighbors:int, classification:bool=True):
+    def __init__(self, num_neighbors: int, classification: bool = True):
         """
         k-nearest neighbors algorithm.
-        
+
         “Tell me with whom you associate, and I will tell you who you are.”
             ― Johann Wolfgang von Goethe
 
         KNN is based on the notion that close data points are more likely to share
         a common label.
-        
+
         :param (int) num_neighbors: Number of closest neighbors to consider in the inference.
-        :param (bool) classification: If a classification or regression task. 
-            Default classification (True). 
+        :param (bool) classification: If a classification or regression task.
+            Default classification (True).
 
         """
         super().__init__()
@@ -63,7 +63,7 @@ class KNN(Model):
         else:
             # for regression we consider the average of the k neighbor labels.
             # the prediction is the mean target of the k neighbours.
-            prediction = sum(values)/len(values)
+            prediction = sum(values) / len(values)
         return prediction
 
     def cost(self, X=None, y=None):

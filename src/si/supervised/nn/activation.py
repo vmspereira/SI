@@ -11,7 +11,7 @@ import numpy as np
 from abc import abstractmethod
 from .layers import Layer
 
-    
+
 class ActivationFunction(Layer):
     def __init__(self):
         """Activation layer.
@@ -77,9 +77,10 @@ class ActivationFunction(Layer):
         # element-wise, so prime(self.input) has the same shape as
         # output_error and no shape change occurs.
         return np.multiply(self.prime(self.input), output_error)
-    
+
     def __str__(self):
         return "Activation"
+
 
 class Sigmoid(ActivationFunction):
     def __init__(self):
@@ -423,9 +424,8 @@ class SoftMax(ActivationFunction):
         # simplifies to (p - y), sidestepping this Jacobian entirely.
         p = self.fn(x)
         return p * (1 - p)
-    
-    
-    
+
+
 functions = {
     'sigmoid': Sigmoid(),
     'relu': ReLU(),
@@ -433,13 +433,14 @@ functions = {
     'softplus': SoftPlus(),
     'hardsigmoid': HardSigmoid(),
     'tanh': Tanh(),
-    'selu':SELU(),
-    'leakyrelu':LeakyReLU(),
+    'selu': SELU(),
+    'leakyrelu': LeakyReLU(),
     'affine': Affine(),
     'elu': ELU(),
     'exp': Exponential(),
-        
+
 }
+
 
 class Activation(Layer):
     """Thin layer wrapper that looks up an activation by name.
@@ -452,21 +453,21 @@ class Activation(Layer):
 
     def __init__(self, function):
         super().__init__()
-        if isinstance(function,str) and function in functions:
+        if isinstance(function, str) and function in functions:
             self.fun = functions[function]
         else:
             raise ValueError(f"The function name is not a string or is unknown."
                              f"possible values are {list(functions.keys())}"
                              )
-            
+
     def initialize(self, optimizer):
         pass
 
     def forward(self, input):
         return self.fun.forward(input)
-    
+
     def backward(self, output_error):
-        return  self.fun.backward(output_error)
-    
+        return self.fun.backward(output_error)
+
     def __str__(self):
         return self.fun.__str__()

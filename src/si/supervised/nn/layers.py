@@ -11,6 +11,7 @@ from abc import ABC, abstractmethod
 from copy import copy
 import numpy as np
 
+
 class Layer(ABC):
     def __init__(self):
         """Abstract class for layers.
@@ -25,7 +26,7 @@ class Layer(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def forward(self, input, training = True):
+    def forward(self, input, training=True):
         """Apply the layer 'function' to a given input
         returning an output.
         """
@@ -57,11 +58,10 @@ class Layer(ABC):
         raise NotImplementedError
 
 
-
 class Dense(Layer):
     def __init__(self, input_size, output_size):
         """Fully Connected layer.
-        
+
         A dense layer is a set of linear functions wni * xni + ... + w0i * x0i + bi.
         The w and b are learnable parameters, that are usually randomly initialized.
 
@@ -175,7 +175,7 @@ class Flatten(Layer):
 
     def __str__(self):
         return "Flatten"
-    
+
 
 class Reshape(Layer):
     def __init__(self, shape):
@@ -266,8 +266,8 @@ class Dropout(Layer):
 
 class BatchNormalization(Layer):
     """Batch Normalization with Momentum.
-    
-       At each iteration or weigths update, the output distribution 
+
+       At each iteration or weigths update, the output distribution
        of a layer shifts (Internal Covariant Shift) making more difficult
        the training process.
        Batch Normalization normalizes the output of the previous output layer
@@ -275,20 +275,21 @@ class BatchNormalization(Layer):
        standard deviation, that is, it gives a Gaussian like look to the output
        distribution.
        BN also has a regularization effect. Indeed, BN introduces a certain level
-       of noise into the sample mean and variance during the training process. 
+       of noise into the sample mean and variance during the training process.
        Such a noise generation mechanism of BN regularizes the training process,
        helping the model to generalize.
        The level of noise depends on the batch size, and increases with it.
        When the batch size is small, the momentum helps increase the noise level
        by averaging the mean and variance of current mini-batch with
-       the historical means and variances.   
-    
-       [1] Yong, H., Huang, J., Meng, D., Hua, X., Zhang, L. (2020). 
-           Momentum Batch Normalization for Deep Learning with Small Batch Size. 
+       the historical means and variances.
+
+       [1] Yong, H., Huang, J., Meng, D., Hua, X., Zhang, L. (2020).
+           Momentum Batch Normalization for Deep Learning with Small Batch Size.
            In: Vedaldi, A., Bischof, H., Brox, T., Frahm, JM. (eds) Computer Vision
-           ECCV 2020. ECCV 2020. Lecture Notes in Computer Science(), vol 12357. Springer, Cham. 
+           ECCV 2020. ECCV 2020. Lecture Notes in Computer Science(), vol 12357. Springer, Cham.
            https://doi.org/10.1007/978-3-030-58610-2_14
     """
+
     def __init__(self, input_shape, momentum=0.99):
         # momentum: weight given to the historical running statistics when
         #   blending in the current batch's mean/var (closer to 1 = slower,
@@ -308,10 +309,10 @@ class BatchNormalization(Layer):
         # gamma (scale) and beta (shift) are the two LEARNABLE parameters of
         # BatchNorm. They let the network undo or re-tune the normalization:
         # starting at gamma=1, beta=0 means "identity" at the first step.
-        self.gamma  = np.ones(self.input_shape)
+        self.gamma = np.ones(self.input_shape)
         self.beta = np.zeros(self.input_shape)
         # parameter optimizers (one each, independent state)
-        self.gamma_opt  = copy(optimizer)
+        self.gamma_opt = copy(optimizer)
         self.beta_opt = copy(optimizer)
 
     def forward(self, input, training=True):

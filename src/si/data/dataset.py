@@ -11,7 +11,7 @@ from ..util.util import label_gen
 
 
 class Dataset:
-    
+
     def __init__(self, X=None, y=None,
                  xnames: list = None,
                  yname: str = None):
@@ -118,7 +118,7 @@ class Dataset:
         import pandas as pd
         if self.y is not None:
             fullds = np.hstack((self.X, self.y.reshape(len(self.y), 1)))
-            columns = self._xnames[:]+[self._yname]
+            columns = self._xnames[:] + [self._yname]
         else:
             fullds = self.X.copy()
             columns = self._xnames[:]
@@ -126,7 +126,7 @@ class Dataset:
 
     def __repr_html__(self) -> str:
         return self.toDataframe().to_html()
-    
+
     def getXy(self):
         # Convenience accessor returning the (features, target) pair, the form
         # most models consume in their `fit` method.
@@ -149,7 +149,7 @@ def summary(dataset, format='df'):
         # Glue the target on as an extra column so it is summarized too.
         # reshape turns y from (n,) into (n, 1) so hstack can append it.
         fullds = np.hstack((dataset.X, dataset.y.reshape(len(dataset.y), 1)))
-        columns = dataset._xnames[:]+[dataset._yname]
+        columns = dataset._xnames[:] + [dataset._yname]
     else:
         fullds = dataset.X
         columns = dataset._xnames[:]

@@ -12,13 +12,13 @@ from ..data import StandardScaler
 
 class PCA:
 
-    def __init__(self, 
-                 n_components:int=2, 
-                 svd:bool=True, 
-                 scale_data:bool=True) -> None:
-        """ 
+    def __init__(self,
+                 n_components: int = 2,
+                 svd: bool = True,
+                 scale_data: bool = True) -> None:
+        """
         Principal component analysis.
-        
+
         :param (int) n_components: Number of components
         :param (bool) svd: Uses SVD decomposition to obtain the eigen values/vector.\
              If False, uses GEEV right eigen vector on the covariance matrix.
@@ -56,10 +56,10 @@ class PCA:
         directions of highest variance" is literally "keep the eigenvectors
         with the largest eigenvalues".
 
-        PCA has some assumptions: 
+        PCA has some assumptions:
             - There must be linearity in the data set, i.e.,
-              the variables combine in a linear manner to form the dataset. 
-        
+              the variables combine in a linear manner to form the dataset.
+
             - The variables exhibit relationships among themselves.
 
         Some rule of thumb:
@@ -67,9 +67,9 @@ class PCA:
             - The number of observations should be at least 150 with a ratio measurement
               of 5:1.
 
-            - Extreme values that deviate from other data points in any dataset, outliers, 
-              should be preferebly removed. Usually values outside the (mean ± 3*std) are 
-              considered outliers.    
+            - Extreme values that deviate from other data points in any dataset, outliers,
+              should be preferebly removed. Usually values outside the (mean ± 3*std) are
+              considered outliers.
         """
         self.n_components = n_components
         self.svd = svd
@@ -91,7 +91,6 @@ class PCA:
             # Centers only instead of std scaler
             X_center = X - np.mean(X, axis=0)
         return X_center
-
 
     def fit(self, dataset):
         """Computes the eigen values and vectors.
@@ -165,4 +164,4 @@ class PCA:
         # percentage. These values help decide how many components to keep
         # (e.g. enough to reach 95% of the total variance).
         _sum = sum(self.e_vals_sorted)
-        return [(i/_sum*100) for i in self.e_vals_sorted]
+        return [(i / _sum * 100) for i in self.e_vals_sorted]

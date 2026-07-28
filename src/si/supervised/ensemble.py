@@ -25,7 +25,7 @@ def majority(values):
 
 def average(values):
     """Soft vote: the mean of the members' predictions (for regression)."""
-    return sum(values)/len(values)
+    return sum(values) / len(values)
 
 
 class Ensemble(Model):
@@ -34,12 +34,12 @@ class Ensemble(Model):
         """Bagging Model Ensemble
 
         Args:
-            models (list[Model]): a list of models.   
+            models (list[Model]): a list of models.
             score (callable): the scoring function.
             fvote (callable, optional): the decision making function (average,majority).
-               Default to majority. 
+               Default to majority.
             fitted (bool, optional): If the models were previously trained. Defaults to False.
-            
+
         Note: majority should be used for classifications tasks while
               average for regression tasks.
         """
@@ -48,7 +48,6 @@ class Ensemble(Model):
         self.fvote = fvote
         self.score = score
         self.is_fitted = fitted
-        
 
     def fit(self, dataset):
         self.dataset = dataset

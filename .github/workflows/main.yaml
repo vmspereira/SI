@@ -12,6 +12,24 @@ on:
     - main
 
 jobs:
+  # Style gate. tox.ini has defined a flake8 env all along, but nothing ever
+  # invoked it, so 280 violations accumulated unnoticed. Runs on one platform
+  # only -- style does not vary by OS or Python version.
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install tox
+    - name: Lint with flake8
+      run: tox -e lint
+
   test:
     runs-on: ${{ matrix.os }}
     strategy:

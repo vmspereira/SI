@@ -13,6 +13,7 @@ import math
 from .layers import Layer
 from .activation import Tanh
 
+
 class RNN(Layer):
     """A Vanilla Fully-Connected Recurrent Neural Network layer.
 
@@ -25,6 +26,7 @@ class RNN(Layer):
         digit specifying the number of features of the input. Must be specified if it is the
         first layer in the network.
     """
+
     def __init__(self, n_units, activation=None, bptt_trunc=5, input_shape=None):
         # An RNN processes a SEQUENCE one time step at a time, carrying a
         # hidden "state" vector h_t that summarizes everything seen so far.
@@ -39,9 +41,9 @@ class RNN(Layer):
         self.activation = Tanh() if activation is None else activation
         self.bptt_trunc = bptt_trunc
 
-        self.W = None # Weight of the previous state (h_(t-1) -> state_t)
-        self.V = None # Weight of the output (state_t -> output_t)
-        self.U = None # Weight of the input (x_t -> state_t)
+        self.W = None  # Weight of the previous state (h_(t-1) -> state_t)
+        self.V = None  # Weight of the output (state_t -> output_t)
+        self.U = None  # Weight of the input (x_t -> state_t)
 
     def initialize(self, optimizer):
         timesteps, input_dim = self.input_shape
@@ -52,12 +54,12 @@ class RNN(Layer):
         #   V : (input_dim, n_units)  maps a state back to output space
         #   W : (n_units, n_units)    maps the previous state to the next
         limit = 1 / math.sqrt(input_dim)
-        self.U  = np.random.uniform(-limit, limit, (self.n_units, input_dim))
+        self.U = np.random.uniform(-limit, limit, (self.n_units, input_dim))
         limit = 1 / math.sqrt(self.n_units)
         self.V = np.random.uniform(-limit, limit, (input_dim, self.n_units))
-        self.W  = np.random.uniform(-limit, limit, (self.n_units, self.n_units))
+        self.W = np.random.uniform(-limit, limit, (self.n_units, self.n_units))
         # Weight optimizers (one independent optimizer per shared matrix)
-        self.U_opt  = copy(optimizer)
+        self.U_opt = copy(optimizer)
         self.V_opt = copy(optimizer)
         self.W_opt = copy(optimizer)
 
@@ -73,7 +75,7 @@ class RNN(Layer):
         #                 holds the initial h_(-1) = 0)
         #   outputs     : the per-step outputs V h_t
         self.state_input = np.zeros((batch_size, timesteps, self.n_units))
-        self.states = np.zeros((batch_size, timesteps+1, self.n_units))
+        self.states = np.zeros((batch_size, timesteps + 1, self.n_units))
         self.outputs = np.zeros((batch_size, timesteps, input_dim))
 
         # Set last time step to zero for calculation of the state_input at time step zero
@@ -83,7 +85,7 @@ class RNN(Layer):
             # Input to state_t is the current input and output of previous states.
             # state_input_t = U x_t + W h_(t-1)   (note .T because U,W are
             # stored as (out, in); the dot gives (batch, n_units)).
-            self.state_input[:, t] = input[:, t].dot(self.U.T) + self.states[:, t-1].dot(self.W.T)
+            self.state_input[:, t] = input[:, t].dot(self.U.T) + self.states[:, t - 1].dot(self.W.T)
             # h_t = activation(state_input_t)  — the recurrent memory update
             self.states[:, t] = self.activation(self.state_input[:, t])
             # output_t = V h_t
@@ -122,22 +124,30 @@ class RNN(Layer):
             # Chain rule: error at output_t flows back through V, then
             # through the activation derivative, to reach state_input_t.
             grad_wrt_state = accum_grad[:, t].dot(self.V) * self.activation.prime(self.state_input[:, t])
-            # Gradient w.r.t the layer input x_t (state_input_t = U x_t + ...).
-            accum_grad_next[:, t] = grad_wrt_state.dot(self.U)
             # Update gradient w.r.t W and U by backprop. from time step t for at most
             # self.bptt_trunc number of time steps.
             # This inner loop walks backwards through the chain of hidden
             # states h_t -> h_(t-1) -> ... accumulating each step's share of
             # dE/dU and dE/dW, then carrying the error one step further back.
-            for t_ in reversed(np.arange(max(0, t - self.bptt_trunc), t+1)):
+            for t_ in reversed(np.arange(max(0, t - self.bptt_trunc), t + 1)):
                 # dE/dU: state_input depends on the input x at step t_
                 grad_U += grad_wrt_state.T.dot(self.layer_input[:, t_])
                 # dE/dW: state_input depends on the previous hidden state h_(t_-1)
-                grad_W += grad_wrt_state.T.dot(self.states[:, t_-1])
+                grad_W += grad_wrt_state.T.dot(self.states[:, t_ - 1])
+                # dE/dx_(t_): state_input_(t_) = U x_(t_) + W h_(t_-1).
+                #
+                # This has to ACCUMULATE (+=) inside the inner loop, not be
+                # assigned once outside it. Input x_(t_) reaches the loss by
+                # many routes: directly through output_(t_), and also through
+                # h_(t_) -> h_(t_+1) -> ... -> output at every later step.
+                # Assigning only the direct route left dE/dx wrong at every
+                # timestep except the last, which is where a finite-difference
+                # check catches it.
+                accum_grad_next[:, t_] += grad_wrt_state.dot(self.U)
                 # Calculate gradient w.r.t previous state: propagate through
                 # W and the previous step's activation derivative (this is
                 # where vanishing/exploding gradients come from in RNNs).
-                grad_wrt_state = grad_wrt_state.dot(self.W) * self.activation.prime(self.state_input[:, t_-1])
+                grad_wrt_state = grad_wrt_state.dot(self.W) * self.activation.prime(self.state_input[:, t_ - 1])
 
         # Update weights with the time-summed gradients.
         self.U = self.U_opt.update(self.U, grad_U)
@@ -146,4 +156,3 @@ class RNN(Layer):
 
         # Hand the input-error sequence back to the previous layer.
         return accum_grad_next
-

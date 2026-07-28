@@ -26,7 +26,7 @@ class Optimizer(ABC):
 
 
 class SGD(Optimizer):
-    
+
     def __init__(self, learning_rate=0.01, momentum=0):
         """Stochastic Gradient Descent with momentum.
 
@@ -45,28 +45,28 @@ class SGD(Optimizer):
 
         where t is the iteration number, lr the learning rate, W the parameters
         and ∇E(W_t) the gradient of the loss function.
-        
+
         In the conventional gradient descent algorithm, the loss function gradient
         ∇E(W), is calculated by using the whole training set of the dataset at once,
         but the stochastic gradient descent algorithm calculates the loss function
         gradient and updates the parameters by using only a subset (mini-batch) of
         the training data at each iteration.
-        
+
         One disadvantage of the stochastic gradient descent algorithm is that it
         can oscillate in the path of the gradient descent in the direction of the
         optimum. The Stochastic Gradient Descent with Momentum uses a
         momentum parameter in the parameter update equation in order to reduce
         the oscillation. The stochastic gradient descent with momentum update equation
         is expressed as:
-        
+
             W_(t+1) = W_t - lr ∇E(W_t) + m (W_t - W_(t-1))
-        
+
         where m ∈ [0,1) represents the momentum of the previous iteration of the
         gradient to the current iteration.
-        
+
         Args:
             learning_rate (float, optional): The learning rate. Defaults to 0.01.
-            momentum (int, optional):  The momentum to use when computing 
+            momentum (int, optional):  The momentum to use when computing
                 the exponential moving average (EMA) of the model's weights. Defaults to 0.
         """
         self.learning_rate = learning_rate
@@ -94,7 +94,7 @@ class SGD(Optimizer):
 class Adam(Optimizer):
     def __init__(self, learning_rate=0.001, b1=0.9, b2=0.999, eps=1e-8):
         """Adam Optimizer
-        
+
         Adam optimizer is an algorithm that uses an adaptive learning rate. Adam optimizer
         has been applied in several deep learning techniques. During the algorithm process
         it finds single adaptive learning rates for the individual parameters. The algorithm
@@ -123,7 +123,7 @@ class Adam(Optimizer):
             b2 (float, optional): The exponential decay rate for the 2nd moment estimates. Defaults to 0.999.
             eps (_type_, optional): A small constant for numerical stability. Defaults to 1e-8.
         """
-        
+
         self.learning_rate = learning_rate
         self.eps = eps
         self.m = None
@@ -165,35 +165,60 @@ class Adam(Optimizer):
 class NesterovAcceleratedGradient(Optimizer):
     def __init__(self, learning_rate=0.001, momentum=0.4):
         """Nesterov Accelerated Gradient.
-        The Nesterov Accelerated Gradient method consists of a gradient descent step, 
-        followed by something that looks a lot like a momentum term, but isn’t exactly 
+        The Nesterov Accelerated Gradient method consists of a gradient descent step,
+        followed by something that looks a lot like a momentum term, but isn't exactly
         the same as that found in classical momentum.
+
+        Classical momentum evaluates the gradient where the parameters are now,
+        then adds the accumulated velocity. Nesterov's insight is to evaluate it
+        where momentum is about to CARRY us -- a look-ahead point -- so the step
+        can correct itself before overshooting:
+
+            w_lookahead = w - momentum * v
+            v_(t+1)     = momentum * v + grad(w_lookahead)
+            w_(t+1)     = w - lr * v_(t+1)
+
+        Taken literally that needs the gradient at a point we are not at, which
+        an optimizer handed a single precomputed gradient cannot obtain. The
+        standard reformulation (the one deep-learning frameworks implement)
+        rewrites the update in terms of the gradient at the CURRENT point:
+
+            v_(t+1) = momentum * v + grad(w)
+            w_(t+1) = w - lr * (grad(w) + momentum * v_(t+1))
+
+        The extra `momentum * v_(t+1)` term is the look-ahead correction. This
+        fits the `update(w, grad_wrt_w)` interface that every layer calls, which
+        the previous version did not: it expected a callable gradient FUNCTION
+        while layers pass a gradient array, and it read its velocity buffer
+        before allocating it, so it raised a broadcasting error on first use.
 
         Args:
             learning_rate (float, optional): The learning rate. Defaults to 0.001.
-            momentum (float, optional): _description_. Defaults to 0.4.
+            momentum (float, optional): How much of the previous velocity is
+                carried into this step, in [0, 1). Defaults to 0.4.
         """
         self.learning_rate = learning_rate
         self.momentum = momentum
-        self.w_updt = np.array([])
+        # The velocity buffer, allocated on first use once the parameter shape
+        # is known (as in every other optimizer here).
+        self.w_updt = None
 
-    def update(self, w, grad_func):
-        # Calculate the gradient of the loss a bit further down the slope from w
-        approx_future_grad = np.clip(grad_func(w - self.momentum * self.w_updt), -1, 1)
-        # Initialize on first update
-        if not self.w_updt.any():
+    def update(self, w, grad_wrt_w):
+        # If not initialized
+        if self.w_updt is None:
             self.w_updt = np.zeros(np.shape(w))
 
-        self.w_updt = (
-            self.momentum * self.w_updt + self.learning_rate * approx_future_grad
-        )
-        # Move against the gradient to minimize loss
-        return w - self.w_updt
+        # Accumulate the velocity: previous velocity, decayed, plus this
+        # gradient.
+        self.w_updt = self.momentum * self.w_updt + grad_wrt_w
+        # Step against the momentum-corrected gradient. With momentum=0 this
+        # reduces to plain gradient descent.
+        return w - self.learning_rate * (grad_wrt_w + self.momentum * self.w_updt)
 
 
 class Adagrad(Optimizer):
     def __init__(self, learning_rate=0.01):
-        """AMSGrad variant of this algorithm from the paper 
+        """AMSGrad variant of this algorithm from the paper
         "On the Convergence of Adam and beyond".
 
         Args:
@@ -216,14 +241,14 @@ class Adagrad(Optimizer):
 class Adadelta(Optimizer):
     def __init__(self, rho=0.95, eps=1e-6):
         """
-        AdaDelta is a stochastic optimization technique that allows for 
-        per-dimension learning rate method for SGD. 
-        It is an extension of Adagrad that seeks to reduce its aggressive, 
+        AdaDelta is a stochastic optimization technique that allows for
+        per-dimension learning rate method for SGD.
+        It is an extension of Adagrad that seeks to reduce its aggressive,
         monotonically decreasing learning rate.
 
         Args:
             rho (float, optional): The decay rate. Defaults to 0.95.
-            eps (_type_, optional): Small floating point value used to maintain numerical stability. 
+            eps (_type_, optional): Small floating point value used to maintain numerical stability.
                 Defaults to 1e-6.
         """
         self.E_w_updt = None  # Running average of squared parameter updates
@@ -274,7 +299,7 @@ class RMSprop(Optimizer):
         The RMSProp algorithm decreases the learning rates when the parameters
         have large gradients and increases the learning rates when the parameters
         have small gradients.
-        
+
         Args:
             learning_rate (float, optional): The learning rate. Defaults to 0.01.
             rho (float, optional): Moving average parameter. Defaults to 0.9.

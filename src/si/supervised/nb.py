@@ -34,14 +34,14 @@ class NaiveBayes(Model):
         [posterior = likelihood * prior / evidence]
 
         For given a set of feature values X=x1,x2,...,xn we want to know the probability
-        of each class y. It is assumed that X and Y are both possible and dependent (the 
-        class values depend on the features), while a strong (naive) independence is 
+        of each class y. It is assumed that X and Y are both possible and dependent (the
+        class values depend on the features), while a strong (naive) independence is
         assumed between the features, that is,
-        
+
             P(X= x1,x2,...,xn) = P(X=x1) P(X=x2) ... P(X=xn)
-        
+
         and
-    
+
             P(X= x1,x2,...,xn|Y=y) = P(X=x1|Y=y) P(X=x2|Y=y) ... P(X=xn|Y=y)
 
         This enables calculating the likelihoods and evidences.

@@ -23,8 +23,9 @@ from .model import Model
 from si.data.transformer import Transformer
 import numpy as np
 
-class LDA(Model,Transformer):
-    
+
+class LDA(Model, Transformer):
+
     # `predict` takes a 2-D X (n_samples, n_features) and returns one
     # prediction per row -- see the note on Model.predicts_batch.
     predicts_batch = True
@@ -33,7 +34,7 @@ class LDA(Model,Transformer):
         super().__init__()
         # w: the learned discriminant direction (set during fit).
         self.w = None
-        
+
     def fit(self, dataset, **kwargs):
         """Learn the Fisher discriminant direction w and the decision threshold.
 
@@ -87,6 +88,6 @@ class LDA(Model,Transformer):
             y = int(h < self.threshold)
             y_pred.append(y)
         return y_pred
-    
+
     def cost(self, *args, **kwarg):
         return super().cost(*args, **kwarg)

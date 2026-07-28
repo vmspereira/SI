@@ -10,6 +10,7 @@ import numpy as np
 from copy import copy
 from .transformer import Transformer
 
+
 class StandardScaler(Transformer):
     """
     Standardize features by centering the mean to 0 and unit variance.
@@ -84,7 +85,6 @@ class StandardScaler(Transformer):
                            copy(dataset._xnames),
                            copy(dataset._yname))
 
-    
     def inverse_transform(self, dataset, inline=False):
         """
         Transform data back into orginal state by multiplying by standard
