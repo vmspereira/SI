@@ -198,36 +198,50 @@ class TestCrossEntropy(unittest.TestCase):
 
 
 class TestSoftmaxCrossEntropy(unittest.TestCase):
+    """Argument order is (y_true, logits) and the result is a scalar mean.
+
+    It used to be declared (logits, y_true) and to return one value per sample.
+    Both were wrong for the only consumer that matters: `NN.fit` calls
+    `self.loss(y_true, y_pred)` and stores the result as a scalar, so
+    `NN(loss="softmax-cross-entropy")` passed its arguments backwards and could
+    not train. Every other loss in this module already used (y_true, y_pred) and
+    reduced to a scalar.
+    """
+
     def test_matches_the_naive_formula_on_safe_logits(self):
         # Where the direct computation does not overflow, the stabilised
         # version must agree with it exactly -- the shift is an identity, not
         # an approximation.
         logits = np.array([[2., 1., 0.], [0., 1., 2.]])
         y_true = np.array([0, 2])
-        naive = (-logits[np.arange(2), y_true]
-                 + np.log(np.exp(logits).sum(axis=-1)))
-        np.testing.assert_allclose(softmax_cross_entropy(logits, y_true), naive)
+        naive = np.mean(-logits[np.arange(2), y_true]
+                        + np.log(np.exp(logits).sum(axis=-1)))
+        self.assertAlmostEqual(softmax_cross_entropy(y_true, logits), naive)
+
+    def test_returns_a_scalar_mean(self):
+        logits = np.array([[2., 1., 0.], [0., 1., 2.]])
+        loss = softmax_cross_entropy(np.array([0, 2]), logits)
+        self.assertIsInstance(loss, float)
+        self.assertEqual(np.ndim(loss), 0)
 
     def test_large_logits_do_not_overflow(self):
         # exp(1000) is inf in float64. Subtracting the row maximum keeps every
         # exponent <= 0, so the loss stays finite. The true class here IS the
         # largest logit, so the loss should be ~0.
-        logits = np.array([[1000., 1.]])
-        loss = softmax_cross_entropy(logits, np.array([0]))
-        self.assertTrue(np.all(np.isfinite(loss)))
-        self.assertAlmostEqual(loss[0], 0.0, places=6)
+        loss = softmax_cross_entropy(np.array([0]), np.array([[1000., 1.]]))
+        self.assertTrue(np.isfinite(loss))
+        self.assertAlmostEqual(loss, 0.0, places=6)
 
     def test_large_logits_wrong_class_is_large_but_finite(self):
-        logits = np.array([[1000., 1.]])
-        loss = softmax_cross_entropy(logits, np.array([1]))
-        self.assertTrue(np.all(np.isfinite(loss)))
-        self.assertAlmostEqual(loss[0], 999.0, places=3)
+        loss = softmax_cross_entropy(np.array([1]), np.array([[1000., 1.]]))
+        self.assertTrue(np.isfinite(loss))
+        self.assertAlmostEqual(loss, 999.0, places=3)
 
     def test_prime_does_not_overflow_and_sums_to_zero(self):
         # softmax probabilities sum to 1 and the one-hot target sums to 1, so
         # the gradient w.r.t. the logits must sum to 0 across the class axis.
-        logits = np.array([[1000., 1., -1000.]])
-        grad = softmax_cross_entropy_prime(logits, np.array([1]))
+        grad = softmax_cross_entropy_prime(np.array([1]),
+                                           np.array([[1000., 1., -1000.]]))
         self.assertTrue(np.all(np.isfinite(grad)))
         self.assertAlmostEqual(grad.sum(), 0.0, places=10)
 
@@ -238,25 +252,64 @@ class TestSoftmaxCrossEntropy(unittest.TestCase):
         onehot = np.zeros_like(logits)
         onehot[np.arange(2), y_true] = 1
         np.testing.assert_allclose(
-            softmax_cross_entropy_prime(logits, y_true),
+            softmax_cross_entropy_prime(y_true, logits),
             (-onehot + softmax) / logits.shape[0])
 
     def test_prime_matches_numerical_gradient(self):
-        # Central differences on the loss, summed over the batch, confirm the
-        # closed-form (softmax - onehot)/m really is its derivative.
+        # Central differences on the scalar loss. The 1/rows factor in the
+        # derivative is exactly what makes it the gradient of the MEAN, so this
+        # would fail if the two reductions disagreed.
         logits = np.array([[0.5, -1.0, 2.0], [1.0, 0.0, -0.5]])
         y_true = np.array([2, 0])
-        analytic = softmax_cross_entropy_prime(logits, y_true)
+        analytic = softmax_cross_entropy_prime(y_true, logits)
         h = 1e-6
-        for i in range(logits.shape[0]):
-            for j in range(logits.shape[1]):
-                up, down = logits.copy(), logits.copy()
-                up[i, j] += h
-                down[i, j] -= h
-                numeric = ((softmax_cross_entropy(up, y_true).sum()
-                            - softmax_cross_entropy(down, y_true).sum())
-                           / (2 * h) / logits.shape[0])
-                self.assertAlmostEqual(analytic[i, j], numeric, places=6)
+        for idx in np.ndindex(logits.shape):
+            up, down = logits.copy(), logits.copy()
+            up[idx] += h
+            down[idx] -= h
+            numeric = (softmax_cross_entropy(y_true, up)
+                       - softmax_cross_entropy(y_true, down)) / (2 * h)
+            self.assertAlmostEqual(analytic[idx], numeric, places=8)
+
+
+class TestSoftmaxCrossEntropyOnSequences(unittest.TestCase):
+    """A language model scores (batch, seq_len, vocab) with one label per
+    position. Everything in front of the class axis is flattened away, so the
+    same loss serves both a plain classifier and a sequence model."""
+
+    def setUp(self):
+        np.random.seed(0)
+        self.logits = np.random.randn(2, 4, 5)
+        self.y_true = np.random.randint(0, 5, (2, 4))
+
+    def test_scores_every_position(self):
+        loss = softmax_cross_entropy(self.y_true, self.logits)
+        self.assertTrue(np.isfinite(loss))
+        # equals the mean over the same positions scored flat
+        flat = softmax_cross_entropy(self.y_true.reshape(-1),
+                                     self.logits.reshape(-1, 5))
+        self.assertAlmostEqual(loss, flat)
+
+    def test_gradient_has_the_shape_of_the_logits(self):
+        grad = softmax_cross_entropy_prime(self.y_true, self.logits)
+        self.assertEqual(grad.shape, self.logits.shape)
+
+    def test_gradient_matches_numerical(self):
+        analytic = softmax_cross_entropy_prime(self.y_true, self.logits)
+        h = 1e-6
+        numerical = np.zeros_like(self.logits)
+        for idx in np.ndindex(self.logits.shape):
+            up, down = self.logits.copy(), self.logits.copy()
+            up[idx] += h
+            down[idx] -= h
+            numerical[idx] = (softmax_cross_entropy(self.y_true, up)
+                              - softmax_cross_entropy(self.y_true, down)) / (2 * h)
+        np.testing.assert_allclose(analytic, numerical, atol=1e-8)
+
+    def test_one_label_per_position_is_required(self):
+        with self.assertRaises(ValueError):
+            softmax_cross_entropy(np.array([0, 1, 2]),
+                                  np.array([[1., 2.], [3., 4.]]))
 
 
 if __name__ == "__main__":
