@@ -254,16 +254,27 @@ class TestDecisionTreeCriteria(unittest.TestCase):
                                   shannon_entropy(expected_probs))
 
 
-class TestTreePredictionsAreLabels(unittest.TestCase):
-    """predict must return a class LABEL, not a position in `classes`.
+class TestPredictionsAreLabels(unittest.TestCase):
+    """Every general-purpose classifier must predict LABELS, not positions.
 
-    argmax over a leaf's class-distribution vector gives an index into
-    `self.classes`. Returning that index directly only looks correct when the
-    labels happen to be 0..k-1: with labels {1, 2} or {'cat', 'dog'} the index
-    never equals the label, so cost() compared indices against labels and
-    reported 0% accuracy on perfectly separable data. RandomForest inherited
-    the same fault, and additionally tallied votes with np.bincount, which
-    indexes by label VALUE.
+    This was a recurring family of bugs, not a one-off. Wherever a model picks a
+    class with argmax it gets a POSITION in some per-class vector, which is an
+    index into the sorted class list -- not a label. Returning that position
+    directly is correct only when the labels happen to be 0..k-1, so
+    `DecisionTree`, `RandomForest` and `NaiveBayes` each reported 0% accuracy on
+    perfectly separable data for labels like {1, 2} or {'cat', 'dog'}, and
+    `LDA.fit` crashed outright because it selected its two groups with
+    hard-coded `y == 0` / `y == 1`.
+
+    RandomForest had a second instance of the same confusion, tallying votes
+    with np.bincount, which indexes by label VALUE.
+
+    The tests below are parametrised over label sets and applied to every
+    classifier at once, so a new model cannot quietly reintroduce this. Two
+    models are excluded because they genuinely constrain their encoding rather
+    than mapping labels: LogisticRegression needs {0, 1} for its log-loss and
+    SVM needs {-1, +1} for its signed margin. Both now validate that in fit --
+    see TestLabelEncodingIsValidated.
     """
 
     # separable blobs relabelled several ways; 0/1 is the only set where the
@@ -276,45 +287,84 @@ class TestTreePredictionsAreLabels(unittest.TestCase):
     }
 
     def setUp(self):
-        self.X, base = two_class_blobs(sep=3.0)
+        # sep=2.0 rather than 3.0: NaiveBayes below is multinomial over
+        # binarized features, and at sep=3 the binarization collapses to a
+        # single pattern per class, giving identical likelihood rows and chance
+        # accuracy for reasons unrelated to labels.
+        self.X, base = two_class_blobs(n_features=4, sep=2.0)
         self.base = base
+        # NaiveBayes models categorical/count features
+        self.Xbin = (self.X > 0).astype(int)
 
     def relabel(self, low, high):
         return np.where(self.base == 0, low, high)
 
-    def test_decision_tree_predicts_labels(self):
-        for name, (low, high) in self.LABEL_SETS.items():
-            with self.subTest(labels=name):
-                y = self.relabel(low, high)
-                m = DecisionTree()
-                m.fit(Dataset(self.X, y))
-                self.assertIn(m.predict(self.X[0]), (low, high))
+    def models(self):
+        """Every classifier that should adapt to whatever labels it is given.
 
-    def test_decision_tree_cost_is_correct_for_any_label_set(self):
-        # The observable consequence of the bug: this used to be 0.000 for
-        # every label set except the zero-based one.
-        for name, (low, high) in self.LABEL_SETS.items():
-            with self.subTest(labels=name):
-                m = DecisionTree()
-                m.fit(Dataset(self.X, self.relabel(low, high)))
-                self.assertGreater(m.cost(), 0.9)
+        Each entry is (name, factory, X) -- NaiveBayes needs the binarized
+        features, the rest use the raw blobs.
+        """
+        return [
+            ('KNN', lambda: KNN(3), self.X),
+            ('DecisionTree', DecisionTree, self.X),
+            ('DecisionTree(entropy)', lambda: DecisionTree(criterion='entropy'), self.X),
+            ('RandomForest', lambda: RandomForest(n_estimators=5), self.X),
+            ('NaiveBayes', NaiveBayes, self.Xbin),
+            ('LDA', LDA, self.X),
+        ]
 
-    def test_random_forest_predicts_labels(self):
-        for name, (low, high) in self.LABEL_SETS.items():
-            with self.subTest(labels=name):
+    def test_predict_returns_labels_for_every_classifier(self):
+        for model_name, factory, X in self.models():
+            for label_name, (low, high) in self.LABEL_SETS.items():
+                with self.subTest(model=model_name, labels=label_name):
+                    y = self.relabel(low, high)
+                    m = factory()
+                    m.fit(Dataset(X, y))
+                    # single-sample models take a row, batch models take X
+                    preds = (m.predict(X) if getattr(m, 'predicts_batch', False)
+                             else [m.predict(row) for row in X])
+                    self.assertTrue(
+                        set(np.unique(np.asarray(preds))) <= {low, high},
+                        f"{model_name} predicted something outside {{{low}, {high}}}")
+
+    def test_cost_is_correct_for_every_classifier_and_label_set(self):
+        # The observable consequence of the whole family of bugs: these used to
+        # read 0.000 (or raise) for every label set except the zero-based one.
+        for model_name, factory, X in self.models():
+            for label_name, (low, high) in self.LABEL_SETS.items():
+                with self.subTest(model=model_name, labels=label_name):
+                    m = factory()
+                    m.fit(Dataset(X, self.relabel(low, high)))
+                    self.assertGreater(m.cost(), 0.9)
+
+    def test_cost_does_not_depend_on_the_label_encoding(self):
+        # Stronger than "above 0.9": relabelling is a pure renaming, so the
+        # score must be IDENTICAL across encodings. A residual position/label
+        # confusion would show up here even if accuracy stayed high by luck.
+        #
+        # np.random is seeded before each fit because RandomForest bootstraps its
+        # trees through the unseeded global np.random -- without this the scores
+        # differ between two fits on the SAME labels, and the test would be
+        # measuring that randomness rather than label handling.
+        for model_name, factory, X in self.models():
+            with self.subTest(model=model_name):
+                scores = []
+                for low, high in self.LABEL_SETS.values():
+                    np.random.seed(0)
+                    m = factory()
+                    m.fit(Dataset(X, self.relabel(low, high)))
+                    scores.append(round(m.cost(), 10))
+                self.assertEqual(len(set(scores)), 1,
+                                 f"{model_name} scored differently per encoding: {scores}")
+
+    def test_random_forest_predicts_one_label_per_row(self):
+        for label_name, (low, high) in self.LABEL_SETS.items():
+            with self.subTest(labels=label_name):
                 y = self.relabel(low, high)
                 m = RandomForest(n_estimators=5)
                 m.fit(Dataset(self.X, y))
-                preds = m.predict(self.X)
-                self.assertEqual(len(preds), len(y))
-                self.assertTrue(set(np.unique(preds)) <= {low, high})
-
-    def test_random_forest_cost_is_correct_for_any_label_set(self):
-        for name, (low, high) in self.LABEL_SETS.items():
-            with self.subTest(labels=name):
-                m = RandomForest(n_estimators=5)
-                m.fit(Dataset(self.X, self.relabel(low, high)))
-                self.assertGreater(m.cost(), 0.9)
+                self.assertEqual(len(m.predict(self.X)), len(y))
 
     def test_random_forest_takes_a_majority_vote_over_labels(self):
         # Deterministic check of the combination step, independent of training:
@@ -324,17 +374,77 @@ class TestTreePredictionsAreLabels(unittest.TestCase):
         self.assertEqual(majority(['cat', 'cat', 'dog']), 'cat')
         self.assertEqual(majority([9, 5, 9]), 9)
 
-    def test_cross_validation_scores_trees_correctly_with_any_labels(self):
-        # predict_all routes through DecisionTree.predict, so the bug also made
-        # every cross-validated score 0 for non-zero-based labels.
+    def test_cross_validation_scores_do_not_depend_on_the_encoding(self):
+        # predict_all routes through each model's predict, so the bug also made
+        # every cross-validated score 0 for non-zero-based labels while the
+        # zero-based one scored normally. Invariance is the property to assert:
+        # an absolute floor would be about how well each model generalises, which
+        # is a different question (NaiveBayes on these binarized features scores
+        # ~0.95 on training data but ~0.62 held out -- equally, for every
+        # encoding).
         from si.util.cv import CrossValidationScore
 
-        for name, (low, high) in self.LABEL_SETS.items():
-            with self.subTest(labels=name):
-                cv = CrossValidationScore(
-                    DecisionTree(), Dataset(self.X, self.relabel(low, high)),
-                    score=accuracy, cv=3, random_state=0)
-                self.assertGreater(np.mean(cv.run()[1]), 0.8)
+        for model_name, factory, X in self.models():
+            with self.subTest(model=model_name):
+                means = []
+                for low, high in self.LABEL_SETS.values():
+                    np.random.seed(0)
+                    cv = CrossValidationScore(
+                        factory(), Dataset(X, self.relabel(low, high)),
+                        score=accuracy, cv=3, random_state=0)
+                    means.append(round(float(np.mean(cv.run()[1])), 10))
+                self.assertEqual(len(set(means)), 1,
+                                 f"{model_name} cross-validated differently per "
+                                 f"encoding: {means}")
+                # and the folds really were scored, not silently all-zero
+                self.assertGreater(means[0], 0.5)
+
+    def test_ensemble_of_mixed_models_handles_any_labels(self):
+        # Ensemble scores its members' predictions against the labels too, so it
+        # inherited the fault from whichever member had it.
+        for label_name, (low, high) in self.LABEL_SETS.items():
+            with self.subTest(labels=label_name):
+                y = self.relabel(low, high)
+                m = Ensemble([KNN(3), DecisionTree(), LDA()], accuracy)
+                m.fit(Dataset(self.X, y))
+                self.assertIn(m.predict(self.X[0]), (low, high))
+                self.assertGreater(m.cost(), 0.9)
+
+
+class TestLabelEncodingIsValidated(unittest.TestCase):
+    """Two models genuinely constrain their label encoding.
+
+    Unlike the classifiers above, these cannot simply map whatever labels they
+    are given -- their mathematics assumes a particular encoding. Both used to
+    accept the wrong one and fail quietly, which is worse than refusing it:
+    LogisticRegression returned cost=nan, and SVM converged to a model scoring
+    about 0.5. Both now raise in fit() with a message naming the fix.
+    """
+
+    def setUp(self):
+        self.X, self.base = two_class_blobs()
+
+    def test_logistic_regression_requires_zero_one_labels(self):
+        # Its log-loss -[y log h + (1-y) log(1-h)] selects one term per label, so
+        # y=2 leaves both active with the wrong signs and the cost becomes nan.
+        for bad in ((1, 2), (-1, 1), ('a', 'b')):
+            with self.subTest(labels=bad):
+                y = np.where(self.base == 0, bad[0], bad[1])
+                with self.assertRaises(ValueError) as ctx:
+                    LogisticRegression().fit(Dataset(self.X, y))
+                self.assertIn("{0, 1}", str(ctx.exception))
+
+    def test_logistic_regression_accepts_zero_one_as_int_or_float(self):
+        for y in (self.base, self.base.astype(float)):
+            with self.subTest(dtype=y.dtype):
+                m = LogisticRegression()
+                m.fit(Dataset(self.X, y))
+                self.assertTrue(np.isfinite(m.cost()))
+
+    def test_logistic_regression_cost_is_finite_not_nan(self):
+        m = LogisticRegression()
+        m.fit(Dataset(self.X, self.base))
+        self.assertFalse(np.isnan(m.cost()))
 
 
 class TestRandomForest(unittest.TestCase):
@@ -464,6 +574,29 @@ class TestSVM(unittest.TestCase):
         preds = m.predict(self.X)
         self.assertEqual(len(preds), len(self.y))
         self.assertGreater(accuracy(self.y, preds), 0.9)
+
+    def test_requires_signed_labels(self):
+        # The dual and the sign() decision rule assume {-1, +1}. Given {0, 1} the
+        # solver still converged and predict still returned +/-1, so nothing
+        # raised -- the model just scored about 0.5 and looked merely bad rather
+        # than mis-specified. It now refuses the encoding instead.
+        from si.supervised.svm import SVM, linear_kernel
+
+        for bad in ((0, 1), (1, 2), (0.0, 2.0)):
+            with self.subTest(labels=bad):
+                y = np.where(self.y < 0, bad[0], bad[1]).astype(float)
+                with self.assertRaises(ValueError) as ctx:
+                    SVM(kernel=linear_kernel).fit(Dataset(self.X, y))
+                self.assertIn("{-1, +1}", str(ctx.exception))
+
+    def test_accepts_signed_labels_as_int_or_float(self):
+        from si.supervised.svm import SVM, linear_kernel
+
+        for y in (self.y, self.y.astype(int)):
+            with self.subTest(dtype=y.dtype):
+                m = SVM(kernel=linear_kernel)
+                m.fit(Dataset(self.X, y))
+                self.assertTrue(m.is_fitted)
 
 
 class TestEnsemble(unittest.TestCase):
