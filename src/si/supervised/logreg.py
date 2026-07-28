@@ -38,10 +38,10 @@ import numpy as np
 class LogisticRegression(Model):
 
     def __init__(self,
-                 epochs:int=10000,
-                 lr:float=0.1,
-                 threshold:float=0.5,
-                 lbd:float=1
+                 epochs: int = 10000,
+                 lr: float = 0.1,
+                 threshold: float = 0.5,
+                 lbd: float = 1
                  ):
         """ Logistic regression model.
 
@@ -56,7 +56,7 @@ class LogisticRegression(Model):
         self.theta = None
         self.epochs = epochs
         self.lr = lr
-        self.threshold=threshold
+        self.threshold = threshold
         self.lbd = lbd
 
     def fit(self, dataset):
@@ -86,7 +86,7 @@ class LogisticRegression(Model):
             # Log-loss gradient: 1/m * X^T (h - y). (h - y) is the per-sample
             # error; X^T projects it back onto each weight.
             gradient = np.dot(X.T, (h - y)) / y.size
-            if self.lbd>0:
+            if self.lbd > 0:
                 # L2 penalty gradient (lambda/m * theta), added to every weight
                 # EXCEPT the bias theta[0] (note the [1:] slice).
                 gradient[1:] = gradient[1:] + (self.lbd / m) * self.theta[1:]
@@ -119,12 +119,12 @@ class LogisticRegression(Model):
         h = sigmoid(np.dot(X, theta))
         # Per-sample log-loss: -[y log h + (1-y) log(1-h)]. The two terms switch
         # roles depending on the true label y (one term vanishes for each y).
-        cost = (-y * np.log(h) - (1-y) * np.log(1-h))
-        if self.lbd>0:
+        cost = (-y * np.log(h) - (1 - y) * np.log(1 - h))
+        if self.lbd > 0:
             # L2 regularization term lambda/(2m) * ||theta||^2, summing over the
             # weights but NOT the bias theta[0] (hence theta[1:]).
-            reg = np.dot(theta[1:], theta[1:]) * self.lbd / (2*m)
+            reg = np.dot(theta[1:], theta[1:]) * self.lbd / (2 * m)
             res = (np.sum(cost) / m) + reg
-        else:    
+        else:
             res = np.sum(cost) / m
         return res

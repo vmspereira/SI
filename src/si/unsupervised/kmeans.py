@@ -12,14 +12,14 @@ from ..util import l2_distance
 
 class KMeans:
 
-    def __init__(self, 
-                 k: int, 
-                 max_iterations: int=1000, 
-                 distance:callable=l2_distance
+    def __init__(self,
+                 k: int,
+                 max_iterations: int = 1000,
+                 distance: callable = l2_distance
                  ) -> None:
-        """ 
+        """
         KMeans algorithm.
-        
+
         :param (int) k: number of clusters
         :param (int) max_iterations: Maximum number of iterations to run if the\
             algorithm does not converge. Default 1000

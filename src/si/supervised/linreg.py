@@ -18,16 +18,16 @@ class LinearRegression(Model):
 
         :param int epochs: Number of epochs for GD.
         :param float lr: Learning rate for GD.
-        :param float lbd: lambda for the regularization. 
+        :param float lbd: lambda for the regularization.
             If non positive, L2 regularization is not applied.
         :param bool gd: If True uses gradient descent (GD) to train the model\
-            otherwise uses closed form linear algebra. Default False. 
+            otherwise uses closed form linear algebra. Default False.
         """
         super(LinearRegression, self).__init__()
         self.theta = None
         self.epochs = epochs
         self.lr = lr
-        self.lbd=lbd
+        self.lbd = lbd
         self.gd = gd
 
     def fit(self, dataset):
@@ -40,34 +40,34 @@ class LinearRegression(Model):
         self.is_fitted = True
 
     def train_closed(self, X, y):
-        """ Uses closed form linear algebra to fit the model. 
+        """ Uses closed form linear algebra to fit the model.
             Preferred to GD when some assumptions are met.
-            
+
             theta = inv(XT*X)*XT*y
             -----------------------------------------------------------------
-            
+
             Where does this formulation comes from?
 
             We can write a linear regression equation in the form
-            
+
                 Y = X W (see the add_intercept method)
-            
+
             We want the predict values XW to be as close as possible to the
-            real values Y, that is, we want to find W values that minimize the 
+            real values Y, that is, we want to find W values that minimize the
             distante between XW and Y, ie, minimize the MSE 1/2 (XW-Y)^2.
-            
+
             In closed form mathematics, minimizing (maximizing) a differentiable function
             is to determine the zero of its derivative... so let us derive:
-            
-                    grad_W (1/2 (X W - Y)^2)                
+
+                    grad_W (1/2 (X W - Y)^2)
                         Note: X^2 = XT * X
-                
-                =   grad_W (1/2 (X W - Y)T * (X W - Y))        
+
+                =   grad_W (1/2 (X W - Y)T * (X W - Y))
                         Note: (A+B)T = AT + BT and  (A*B)T = BT*AT
-                
+
                 =   grad_W (1/2 (WT XT X W - 2 WT XT Y - YT Y))
-                        Note dx^2/dx = 2x ,  dxy/dx = y and dy/dx = 0   
-                
+                        Note dx^2/dx = 2x ,  dxy/dx = y and dy/dx = 0
+
                 =   XT X W - XT Y
 
             Now that we have the W derivative, we need to know for which W the derivative is 0,
@@ -79,48 +79,47 @@ class LinearRegression(Model):
         L2 Reg
 
             theta = inv(XT*X+lbd*I)*XT*y
-        
-            The difference to the LR closed form is the inclusion of the matrix 
-        
+
+            The difference to the LR closed form is the inclusion of the matrix
+
                     | 0 0 0 ... 0 |
                     | 0 1 0 ... 0 |
             lbd  *  | 0 0 1 ... 0 |
                     |       ...
                     | 0 0 0 ... 1 |
-        
+
             in the derivative resulting from adding the L2 regularization term.
             Note that the matrix is not an identity matrix as the first entry is 0.
             The regularization is not applied to the intercept (bias) term.
             You may, as an exercise, derive the closed form.
-            
+
             The closed form computation of weight can not be applied in certain cases, such as,
             when the det(XT X) is zero or when the number of data points is not large enough.
             Indeed, it can be demonstrated that when P >> N (The Curse of dimensionality), the
-            
+
                  inv(XT X) ~ 1/det(XT X) -> inf
-                 
-            where P is the number of feature and N the number of data points.    
+
+            where P is the number of feature and N the number of data points.
         """
-        if self.lbd>0:
+        if self.lbd > 0:
             n = X.shape[1]
             identity = np.eye(n)
             identity[0, 0] = 0
-            self.theta = np.linalg.inv(X.T @ X + self.lbd*identity) @ X.T @ y
+            self.theta = np.linalg.inv(X.T @ X + self.lbd * identity) @ X.T @ y
         else:
             self.theta = np.linalg.inv(X.T @ X) @ X.T @ y
-        
 
     def train_gd(self, X, y):
-        """ 
+        """
         The error between the predictions (XW) and the real values is
             E = XW-Y
-        
+
         The cost function J is the Mean Square Error (MSE).
-        whose gradient (impact of the weights in the error) is 
-        
-            dJ/dW = 1/m (X W - Y) X   
-        
-        At each iteration, the weights are updated considering a defined 
+        whose gradient (impact of the weights in the error) is
+
+            dJ/dW = 1/m (X W - Y) X
+
+        At each iteration, the weights are updated considering a defined
         learning rate (lr)
 
             W = W - lr * dJ/dW
@@ -128,35 +127,33 @@ class LinearRegression(Model):
         """
         m = X.shape[0]
         n = X.shape[1]
-        
+
         # the history keeps track of the learning process
         self.history = {}
-        
+
         # initialize the weights
         self.theta = np.zeros(n)
-        
+
         # with L2
-        if self.lbd>0:
+        if self.lbd > 0:
             lbds = np.full(m, self.lbd)
             lbds[0] = 0
 
         # iterative GD
         for epoch in range(self.epochs):
-            # the lambda value is not applied to the bias term.            
-            
+            # the lambda value is not applied to the bias term.
+
             # with L2
-            if self.lbd>0:
-                grad = (X.dot(self.theta)-y).dot(X)
-                self.theta -= (self.lr/m) * (lbds*self.theta+grad)
-            
-            # without L2    
+            if self.lbd > 0:
+                grad = (X.dot(self.theta) - y).dot(X)
+                self.theta -= (self.lr / m) * (lbds * self.theta + grad)
+
+            # without L2
             else:
-                grad = 1/m * (X @ self.theta - y) @ X
+                grad = 1 / m * (X @ self.theta - y) @ X
                 self.theta -= self.lr * grad
-            
+
             self.history[epoch] = [self.theta.copy(), self.cost()]
-
-
 
     def predict(self, x):
         assert self.is_fitted, 'Model must be fit before predicting'
@@ -169,9 +166,9 @@ class LinearRegression(Model):
         X = add_intercept(X) if X is not None else self.X
         y = y if y is not None else self.y
         theta = theta if theta is not None else self.theta
-        
+
         # computes the predictions
         y_pred = np.dot(X, theta)
-        
+
         # calculates the MSE
         return mse(y, y_pred)

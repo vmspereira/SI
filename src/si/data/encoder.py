@@ -1,6 +1,7 @@
 from .transformer import Transformer
 import numpy as np
 
+
 class LabelEncoder(Transformer):
     """Encodes categorical labels as consecutive integers (0, 1, 2, ...).
 
@@ -41,7 +42,7 @@ class LabelEncoder(Transformer):
                            copy(dataset._yname)
                            )
 
-        
+
 class OneHotEncoder(Transformer):
     """Encodes integer labels as one-hot vectors.
 

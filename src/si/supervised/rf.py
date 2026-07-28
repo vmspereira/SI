@@ -30,12 +30,13 @@ from si.data import Dataset
 from .dt import DecisionTree
 from si.util import accuracy_score, get_random_subsets
 
+
 class RandomForest(Model):
     """Random Forest classifier. Uses a collection of decision trees that
     trains on random subsets of the data using a random subsets of the features.
 
     :param in n_estimators: The number of classification trees that are used.
-    :param int max_features: The maximum number of features that the classification 
+    :param int max_features: The maximum number of features that the classification
         trees are allowed to use.
     :param int min_samples_split: The minimum number of samples needed to make a split
         when building a tree.
@@ -45,20 +46,20 @@ class RandomForest(Model):
     # prediction per row -- see the note on Model.predicts_batch.
     predicts_batch = True
 
-    def __init__(self, n_estimators=100, 
-                 max_features=None, 
+    def __init__(self, n_estimators=100,
+                 max_features=None,
                  min_samples_split=2,
                  max_depth=float("inf")):
-        
+
         # Number of trees
         self.n_estimators = n_estimators
         # Maxmimum number of features per tree
         self.max_features = max_features
-            
+
         self.min_samples_split = min_samples_split
-        # Maximum depth for tree            
-        self.max_depth = max_depth          
-        
+        # Maximum depth for tree
+        self.max_depth = max_depth
+
         # Initialize decision trees
         self.trees = []
         for _ in range(n_estimators):
@@ -98,9 +99,9 @@ class RandomForest(Model):
             X_subset = X_subset[:, idx]
             # Fit the tree to the data
             self.trees[i].fit(Dataset(X_subset, y_subset))
-        
+
         self.is_fitted = True
-        
+
     def predict(self, X):
         # y_preds[s, t] = the vote of tree t for sample s.
         y_preds = np.empty((X.shape[0], len(self.trees)))
@@ -122,7 +123,7 @@ class RandomForest(Model):
             # Select the most common class prediction
             y_pred.append(np.bincount(sample_predictions.astype('int')).argmax())
         return y_pred
-    
+
     def cost(self, X=None, y=None):
         X = X if X is not None else self.dataset.X
         y = y if y is not None else self.dataset.y

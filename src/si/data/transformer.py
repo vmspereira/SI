@@ -8,6 +8,7 @@
 # ---------------------------------------------------------------------------
 from abc import ABC, abstractmethod
 
+
 class Transformer(ABC):
     """Abstract base class defining the fit / transform contract.
 
@@ -41,7 +42,7 @@ class Transformer(ABC):
         return self
 
     @abstractmethod
-    def transform(self, dataset, inline:bool=False):
+    def transform(self, dataset, inline: bool = False):
         """Transforms a dataset.
 
         Abstract: each subclass MUST provide its own transformation logic.

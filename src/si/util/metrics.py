@@ -10,17 +10,19 @@
 import numpy as np
 import pandas as pd
 
-def confusion_matrix(true_y, predict_y, format ='df'):
+
+def confusion_matrix(true_y, predict_y, format='df'):
     """
     Computes a confusion matrix
     """
-    cm = pd.crosstab(true_y, predict_y, 
-                     rownames = ["True values"], 
-                     colnames = ["Predicted values"])
-    if format=='df':
+    cm = pd.crosstab(true_y, predict_y,
+                     rownames=["True values"],
+                     colnames=["Predicted values"])
+    if format == 'df':
         return pd.DataFrame(cm)
     else:
         return cm
+
 
 def accuracy_score(y_true, y_pred):
     """
@@ -31,13 +33,14 @@ def accuracy_score(y_true, y_pred):
     :param numpy.array y_pred: array-like of shape (n_samples,) Estimated target values.
     :returns: (float) Accuracy score.
     """
-    accuracy = (y_true==y_pred).sum() / len(y_true)
+    accuracy = (y_true == y_pred).sum() / len(y_true)
     return accuracy
 
+
 def multiclass_accuracy(y_true, y_pred):
-    p = np.argmax(y_pred,axis=1)
-    t = np.argmax(y_true,axis=1)
-    return accuracy_score(t,p)
+    p = np.argmax(y_pred, axis=1)
+    t = np.argmax(y_true, axis=1)
+    return accuracy_score(t, p)
 
 
 def mae(y_true, y_pred):
@@ -51,13 +54,15 @@ def mae(y_true, y_pred):
         Estimated target values.
     :returns: loss (float) A non-negative floating point value (the best value is 0.0).
     """
-    return np.mean(np.abs(y_true-y_pred))
+    return np.mean(np.abs(y_true - y_pred))
+
 
 def mae_prime(y_true, y_pred):
     X = y_true - y_pred
     m = y_pred.shape[0]
-    return np.where(X > 0, -1/m, np.where(X < 0, 1/m, 0))
-    
+    return np.where(X > 0, -1 / m, np.where(X < 0, 1 / m, 0))
+
+
 def mse(y_true, y_pred):
     """
     Mean squared error regression loss function.
@@ -68,27 +73,29 @@ def mse(y_true, y_pred):
     :param numpy.array y_pred: array-like of shape (n_samples,)
         Estimated target values.
     :returns: loss (float) A non-negative floating point value (the best value is 0.0).
-    
+
     Note: some implementations of the MSE consider additionaly a division by 2
-          to obtain a `cleaner` derivative allowing to cancel the factor '2' 
-          (see mse_prime). 
+          to obtain a `cleaner` derivative allowing to cancel the factor '2'
+          (see mse_prime).
           Computationally, they are equivalent as both require a bit shift.
     """
-    return np.mean(np.power(y_true-y_pred, 2))
+    return np.mean(np.power(y_true - y_pred, 2))
+
 
 def mse_prime(y_true, y_pred):
     """ The derivative of the MSE.
-     
+
     :param numpy.array y_true: array-like of shape (n_samples,)
         Ground truth (correct) target values.
     :param numpy.array y_pred: array-like of shape (n_samples,)
         Estimated target values.
     :returns: the derivative of the MSE
-    
+
     Note: To avoid the additional multiplication by -1 just swap
           the y_pred and y_true.
     """
-    return 2*(y_pred-y_true)/y_true.size
+    return 2 * (y_pred - y_true) / y_true.size
+
 
 def rmse(y_true, y_pred):
     """Rooted MSE
@@ -99,7 +106,8 @@ def rmse(y_true, y_pred):
         Estimated target values.
     :returns: RMSE
     """
-    return np.sqrt(mse(y_true,y_pred))
+    return np.sqrt(mse(y_true, y_pred))
+
 
 def rmse_prime(y_true, y_pred):
     """Derivative of RMSE
@@ -110,8 +118,9 @@ def rmse_prime(y_true, y_pred):
         Estimated target values.
     :returns: the derivative of the RMSE
     """
-    X = (y_pred-y_true)
-    return np.where(X==0, 0, X/(rmse(y_true,y_pred)*y_true.size)) 
+    X = (y_pred - y_true)
+    return np.where(X == 0, 0, X / (rmse(y_true, y_pred) * y_true.size))
+
 
 def cross_entropy(y_true, y_pred, eps=1e-15):
     """Cross entropy
@@ -134,7 +143,8 @@ def cross_entropy(y_true, y_pred, eps=1e-15):
     """
     m = y_pred.shape[0]
     y_pred = np.clip(y_pred, eps, 1 - eps)
-    return -(y_true * np.log(y_pred)).sum()/m
+    return -(y_true * np.log(y_pred)).sum() / m
+
 
 def cross_entropy_prime(y_true, y_pred):
     """Cross entropy derivative
@@ -146,7 +156,8 @@ def cross_entropy_prime(y_true, y_pred):
     :returns: cross entropy derivative
     """
     m = y_pred.shape[0]
-    return (y_pred - y_true)/m
+    return (y_pred - y_true) / m
+
 
 def softmax_cross_entropy(logits, y_true):
     """Given model outputs (logits) and the indexes
@@ -171,6 +182,7 @@ def softmax_cross_entropy(logits, y_true):
     log_sum_exp = shift[:, 0] + np.log(np.sum(np.exp(logits - shift), axis=-1))
     return -true_class_logits + log_sum_exp
 
+
 def softmax_cross_entropy_prime(logits, y_true):
     """Derivative of the softmax cross entropy w.r.t. the logits.
 
@@ -180,10 +192,11 @@ def softmax_cross_entropy_prime(logits, y_true):
     """
     logits = np.asarray(logits, dtype=float)
     ones_true_class = np.zeros_like(logits)
-    ones_true_class[np.arange(len(logits)),y_true] = 1
+    ones_true_class[np.arange(len(logits)), y_true] = 1
     exps = np.exp(logits - logits.max(axis=-1, keepdims=True))
-    softmax = exps / exps.sum(axis=-1,keepdims=True)
+    softmax = exps / exps.sum(axis=-1, keepdims=True)
     return (-ones_true_class + softmax) / logits.shape[0]
+
 
 def r2_score(y_true, y_pred):
     """
@@ -219,9 +232,9 @@ def r2_score(y_true, y_pred):
     return score if score.ndim else float(score)
 
 
-METRICS ={ 'MSE': (mse, mse_prime),
+METRICS = {'MSE': (mse, mse_prime),
            'RMSE': (rmse, rmse_prime),
            'MAE': (mae, mae_prime),
            'cross-entropy': (cross_entropy, cross_entropy_prime),
-           'softmax-cross-entropy':(softmax_cross_entropy, softmax_cross_entropy_prime)
-         }
+           'softmax-cross-entropy': (softmax_cross_entropy, softmax_cross_entropy_prime)
+           }

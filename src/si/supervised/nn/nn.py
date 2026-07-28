@@ -16,7 +16,6 @@ from si.util import METRICS, minibatch
 from .optimizers import SGD
 
 
-
 class NN(Model):
     # `predict` takes a 2-D X (n_samples, n_features) and returns one
     # prediction per row -- see the note on Model.predicts_batch.
@@ -81,7 +80,7 @@ class NN(Model):
 
         :param (str) loss: The loss function name.
         """
-        if isinstance(loss,str):
+        if isinstance(loss, str):
             if loss in METRICS:
                 self.loss = METRICS[loss][0]
                 self.loss_prime = METRICS[loss][1]
@@ -94,11 +93,10 @@ class NN(Model):
             self.loss = loss[0]
             self.loss_prime = loss[1]
 
-
     def set_metric(self, metric):
         self.metric = metric
 
-    def forward(self,input, training=True):
+    def forward(self, input, training=True):
         """
         Forward propagation
         Propagates values across all layers from the input to the final output.
@@ -116,9 +114,9 @@ class NN(Model):
         # training and inference.
         output_batch = input
         for layer in self.layers:
-                    output_batch = layer.forward(output_batch,training)
+            output_batch = layer.forward(output_batch, training)
         return output_batch
-        
+
     def fit(self, dataset, **kwargs):
         """Train the network with mini-batch gradient descent.
 
@@ -176,7 +174,7 @@ class NN(Model):
             # all the epoch outputs
             out_all = np.concatenate(x_)
             y_all = np.concatenate(y_)
-            
+
             # compute the loss
             err = self.loss(y_all, out_all)
 
@@ -217,5 +215,3 @@ class NN(Model):
 
     def __str__(self) -> str:
         return "\n".join([str(layer) for layer in self.layers])
-
-

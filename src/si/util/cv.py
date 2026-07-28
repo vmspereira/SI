@@ -174,7 +174,7 @@ class GridSearchCV:
             for r in self.results:
                 v.append(r[1][0][i])
                 t.append(r[1][1][i])
-            data[f'CV_{i+1} train'] = v
-            data[f'CV_{i+1} test'] = t
+            data[f'CV_{i + 1} train'] = v
+            data[f'CV_{i + 1} test'] = t
 
         return pd.DataFrame(data)
