@@ -98,6 +98,51 @@ class TestElementwiseActivationContract(unittest.TestCase):
         self.assertEqual(out.shape, (1, 3))
 
 
+class TestSecondDerivatives(unittest.TestCase):
+    """Every element-wise activation exposes prime2, and none of it was tested.
+
+    prime2 is unused by the library's own training loop (first-order optimizers
+    only need prime), which is exactly why it could drift unnoticed. Verified
+    here against a finite difference of `prime`, since f'' = d/dx f'.
+    """
+
+    def test_prime2_matches_the_derivative_of_prime(self):
+        h = 1e-4
+        for act, x in ELEMENTWISE:
+            if not hasattr(act, 'prime2'):
+                continue
+            with self.subTest(activation=str(act)):
+                numeric = (act.prime(x + h) - act.prime(x - h)) / (2 * h)
+                np.testing.assert_allclose(act.prime2(x), numeric,
+                                           rtol=1e-3, atol=1e-3)
+
+    def test_piecewise_linear_activations_have_zero_curvature(self):
+        # ReLU, LeakyReLU, Affine, Identity and HardSigmoid are straight lines
+        # either side of their kinks, so away from those kinks f'' is exactly 0.
+        for act in (ReLU(), LeakyReLU(), Affine(slope=3), Identity(),
+                    HardSigmoid()):
+            with self.subTest(activation=str(act)):
+                np.testing.assert_allclose(act.prime2(SMOOTH_POINTS),
+                                           np.zeros_like(SMOOTH_POINTS))
+
+    def test_exponential_is_its_own_second_derivative(self):
+        act = Exponential()
+        x = np.array([[-1.0, 0.0, 1.5]])
+        np.testing.assert_allclose(act.prime2(x), np.exp(x))
+
+    def test_softplus_second_derivative_is_the_sigmoid_derivative(self):
+        # d/dz sigma(z) = sigma(z)(1 - sigma(z))
+        act = SoftPlus()
+        x = np.array([[-1.0, 0.0, 2.0]])
+        sigma = Sigmoid().fn(x)
+        np.testing.assert_allclose(act.prime2(x), sigma * (1 - sigma))
+
+    def test_softmax_has_no_second_derivative(self):
+        # SoftMax is not element-wise and only defines prime (its Jacobian
+        # diagonal), so it deliberately has no prime2 to check.
+        self.assertFalse(hasattr(SoftMax(), 'prime2'))
+
+
 class TestActivationValues(unittest.TestCase):
     """Hand-computed values, one per activation."""
 
