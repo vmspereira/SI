@@ -43,7 +43,7 @@ class NaiveBayes(Model):
         This enables calculating the likelihoods and evidences.
 
         """
-        super(NaiveBayes).__init__()
+        super().__init__()
         self.prior = None
         self.lk = None
         self.alpha = alpha

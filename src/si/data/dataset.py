@@ -45,14 +45,14 @@ class Dataset:
 
     @classmethod
     def from_dataframe(cls, df, ylabel=None):
-        """Creates a DataSet from a pandas dataframe.
+        """Creates a Dataset from a pandas dataframe.
 
-        :param df: [description]
-        :type df: [type]
-        :param ylabel: [description], defaults to None
-        :type ylabel: [type], optional
-        :return: [description]
-        :rtype: [type]
+        :param df: the source dataframe.
+        :type df: pandas.DataFrame
+        :param ylabel: name of the column to use as the label/target, defaults to None
+        :type ylabel: str, optional
+        :return: a Dataset object
+        :rtype: Dataset
         """
 
         if ylabel and ylabel in df.columns:

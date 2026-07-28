@@ -7,7 +7,7 @@
 """Logistic regression module"""
 # ---------------------------------------------------------------------------
 from .model import Model
-from si.util import sigmoid, add_intersect
+from si.util import sigmoid, add_intercept
 import numpy as np
 
 
@@ -37,7 +37,7 @@ class LogisticRegression(Model):
 
     def fit(self, dataset):
         X, y = dataset.getXy()
-        X = add_intersect(X)
+        X = add_intercept(X)
         
         self.X = X
         self.y = y
@@ -71,7 +71,7 @@ class LogisticRegression(Model):
         return res
 
     def cost(self, X=None, y=None, theta=None):
-        X = add_intersect(X) if X is not None else self.X
+        X = add_intercept(X) if X is not None else self.X
         y = y if y is not None else self.y
         theta = theta if theta is not None else self.theta
         m = X.shape[0]

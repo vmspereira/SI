@@ -105,9 +105,9 @@ def get_random_subsets(X, y, n_subsets, replacements=True):
     return subsets
 
 
-def add_intersect(X):
-    """ 
-    Adds a vector of "1" in front of a matrix:
+def add_intercept(X):
+    """
+    Adds a column of "1" in front of a matrix (the intercept/bias term):
 
     | a b |  to  |1 a b | 
     | c d |      |1 c d |

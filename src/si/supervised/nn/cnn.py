@@ -61,19 +61,32 @@ class Conv2D(Layer):
         fr, fc, in_ch, out_ch = self.weights.shape
         p = self.padding
 
-        db = np.sum(output_error, axis=(0, 1, 2))
-        db = db.reshape(out_ch,)
+        # Recover the (out_ch, N) layout used inside the forward pass. The
+        # forward output was reshaped (out_ch, out_rows, out_cols, n_ex) and
+        # transposed to NHWC, so we reverse exactly that here.
+        dout_reshaped = output_error.transpose(3, 1, 2, 0).reshape(out_ch, -1)
 
-        dout_reshaped = output_error.transpose(1, 2, 3, 0).reshape(out_ch, -1)
+        # gradient wrt bias: sum the error over the batch and spatial dims
+        db = np.sum(output_error, axis=(0, 1, 2)).reshape(out_ch, 1)
+
+        # gradient wrt weights. X_col rows are ordered (in_ch, fr, fc), so the
+        # product is ordered the same way and must be transposed back to the
+        # (fr, fc, in_ch, out_ch) weight layout.
         dW = dout_reshaped @ self.X_col.T
-        dW = dW.reshape(self.weights.shape)
+        dW = dW.reshape(out_ch, in_ch, fr, fc).transpose(2, 3, 1, 0)
 
-        W_reshape = self.weights.reshape(out_ch, -1)
-        dX_col = W_reshape.T @ dout_reshaped
+        # gradient wrt input. Use the same weight reshaping as the forward pass
+        # (transpose(3, 2, 0, 1)) so the (in_ch, fr, fc) ordering matches X_col.
+        W_col = self.weights.transpose(3, 2, 0, 1).reshape(out_ch, -1)
+        dX_col = W_col.T @ dout_reshaped
+        # col2im returns the gradient in NCHW order; transpose back to the
+        # NHWC layout used by every forward pass so the previous layer gets
+        # a gradient shaped like its own output.
         input_error = col2im(dX_col, self.X_shape, self.weights.shape, p, self.stride)
+        input_error = input_error.transpose(0, 2, 3, 1)
 
         self.weights = self.w_opt.update(self.weights, dW)
-        self.bias = self.b_opt.update(self.bias,db)
+        self.bias = self.b_opt.update(self.bias, db)
 
         return input_error
 

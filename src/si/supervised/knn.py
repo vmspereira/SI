@@ -27,7 +27,7 @@ class KNN(Model):
             Default classification (True). 
 
         """
-        super(KNN).__init__()
+        super().__init__()
         self.num_neighbors = num_neighbors
         self.classification = classification
 
