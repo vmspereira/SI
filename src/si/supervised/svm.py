@@ -77,6 +77,10 @@ class SVM(Model):
     :param float gamma: Used in the rbf kernel function.
     :param float coef: Bias term used in the polynomial kernel function.
     """
+    # `predict` takes a 2-D X (n_samples, n_features) and returns one
+    # prediction per row -- see the note on Model.predicts_batch.
+    predicts_batch = True
+
     def __init__(self, C=1, kernel=rbf_kernel, power=4, gamma=None, coef=4):
         self.C = C
         self.kernel = kernel

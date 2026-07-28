@@ -25,6 +25,10 @@ import numpy as np
 
 class LDA(Model,Transformer):
     
+    # `predict` takes a 2-D X (n_samples, n_features) and returns one
+    # prediction per row -- see the note on Model.predicts_batch.
+    predicts_batch = True
+
     def __init__(self):
         super().__init__()
         # w: the learned discriminant direction (set during fit).

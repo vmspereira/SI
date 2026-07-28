@@ -41,6 +41,10 @@ class RandomForest(Model):
         when building a tree.
     :param int max_depth: The maximum depth of a tree.
     """
+    # `predict` takes a 2-D X (n_samples, n_features) and returns one
+    # prediction per row -- see the note on Model.predicts_batch.
+    predicts_batch = True
+
     def __init__(self, n_estimators=100, 
                  max_features=None, 
                  min_samples_split=2,

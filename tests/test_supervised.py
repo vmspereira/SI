@@ -20,6 +20,9 @@ from si.supervised import (
     RandomForest,
     NaiveBayes,
     LDA,
+    Ensemble,
+    majority,
+    average,
 )
 
 
@@ -300,6 +303,93 @@ class TestSVM(unittest.TestCase):
         preds = m.predict(self.X)
         self.assertEqual(len(preds), len(self.y))
         self.assertGreater(accuracy(self.y, preds), 0.9)
+
+
+class TestEnsemble(unittest.TestCase):
+    """Ensemble must combine members regardless of their predict convention.
+
+    The members of this library disagree about what `predict` takes: some want
+    a single 1-D sample, some want a 2-D batch (see `Model.predicts_batch`).
+    Ensemble is handed a single sample by its own `cost`, so it has to bridge
+    that gap for every member.
+    """
+
+    def setUp(self):
+        X, self.y = two_class_blobs(n_features=4)
+        self.X = X
+        # NaiveBayes here models categorical/count features, so it gets the
+        # binarized copy of the same blobs.
+        self.Xbin = (X > 0).astype(int)
+
+    def test_batch_members(self):
+        # Regression guard: NaiveBayes and LDA both predict batches. Handing
+        # them the raw 1-D sample made them iterate over features instead of
+        # samples, which used to raise
+        #   ValueError: operands could not be broadcast together
+        #               with shapes (2,0,2) (0,)
+        m = Ensemble([NaiveBayes(), LDA()], accuracy)
+        m.fit(Dataset(self.Xbin, self.y))
+        self.assertIn(m.predict(self.Xbin[0]), (0, 1))
+        self.assertGreater(m.cost(), 0.9)
+
+    def test_single_sample_members(self):
+        # The convention Ensemble always supported: members that take one
+        # sample and return one scalar.
+        m = Ensemble([KNN(3), DecisionTree()], accuracy)
+        m.fit(Dataset(self.X, self.y))
+        self.assertIn(m.predict(self.X[0]), (0, 1))
+        self.assertGreater(m.cost(), 0.9)
+
+    def test_mixed_members(self):
+        # The case that motivated the fix: both conventions in one ensemble.
+        # KNN is single-sample, LDA and RandomForest are batch predictors.
+        m = Ensemble([KNN(3), LDA(), RandomForest(n_estimators=5)], accuracy)
+        m.fit(Dataset(self.X, self.y))
+        self.assertIn(m.predict(self.X[0]), (0, 1))
+        self.assertGreater(m.cost(), 0.9)
+
+    def test_requires_fit(self):
+        m = Ensemble([KNN(3)], accuracy)
+        with self.assertRaises(AssertionError):
+            m.predict(self.X[0])
+
+    def test_average_vote_for_regression(self):
+        # With `average` as the decision function the ensemble output is the
+        # mean of the members' predictions, so two regressors fit on an exactly
+        # linear target must recover it. lbd=0 switches off the default L2
+        # penalty (lbd=1), which would otherwise shrink the coefficients and
+        # leave a residual error of ~8e-4.
+        y = self.X[:, 0] * 2.0 + 1.0
+        m = Ensemble([LinearRegression(lbd=0), LinearRegression(lbd=0)],
+                     lambda t, p: float(np.mean((t - p) ** 2)),
+                     fvote=average)
+        m.fit(Dataset(self.X, y))
+        self.assertLess(m.cost(), 1e-20)
+
+    def test_average_vote_is_the_mean_of_members(self):
+        # Two members fit differently (closed form vs gradient descent) so they
+        # genuinely disagree; the ensemble output must be exactly their mean.
+        y = self.X[:, 0] * 2.0 + 1.0
+        exact = LinearRegression(lbd=0)
+        approx = LinearRegression(lbd=0, gd=True, epochs=50)
+        ds = Dataset(self.X, y)
+        exact.fit(ds)
+        approx.fit(ds)
+        # fitted=True: the members are already trained, so skip refitting them
+        m = Ensemble([exact, approx], accuracy, fvote=average, fitted=True)
+        sample = self.X[0]
+        self.assertAlmostEqual(
+            m.predict(sample),
+            (exact.predict(sample) + approx.predict(sample)) / 2,
+        )
+
+    def test_majority_breaks_ties_deterministically(self):
+        # A 2-2 split has no modal value, so the tie-break has to be defined:
+        # the smallest label wins. Relying on `set` iteration order instead
+        # would make the vote an implementation detail.
+        self.assertEqual(majority([0, 0, 1, 1]), 0)
+        self.assertEqual(majority([1, 1, 0, 0]), 0)
+        self.assertEqual(majority([2, 2, 2, 5]), 2)
 
 
 if __name__ == "__main__":
