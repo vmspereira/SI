@@ -75,22 +75,40 @@ class PCA:
         self.svd = svd
         self.scale_data = scale_data
 
-    def scale(self, dataset):
+    def scale(self, dataset, fitting=False):
         # PCA is about variance, and variance is measured RELATIVE TO THE MEAN,
         # so the data must always be centred (mean of every feature set to 0)
         # before computing the covariance/SVD. Optionally we also divide by the
         # standard deviation: without that, a feature measured in large units
         # (e.g. salary in dollars) would dominate the variance purely because
         # of its scale, not because it carries more information.
+        #
+        # `fitting=True` LEARNS the centring/scaling statistics; every later call
+        # reuses them. Previously the statistics were recomputed from whatever
+        # data was passed, including in transform, so new data was centred on its
+        # own mean rather than the training mean. The projection then ignored any
+        # shift entirely: X and X + 100 came out with identical coordinates,
+        # which makes the transformer useless for projecting held-out data (and
+        # leaks that data's statistics).
         X = dataset.X
+        if fitting:
+            self._mean = np.mean(X, axis=0)
+            if self.scale_data:
+                self._scaler = StandardScaler()
+                self._scaler.fit(dataset)
+            else:
+                self._scaler = None
+        if not hasattr(self, '_mean'):
+            raise RuntimeError(
+                "PCA must be fit before transforming: the projection needs the "
+                "centring statistics learned from the training data."
+            )
         if self.scale_data:
-            # Full z-score standardization (centre AND unit variance).
-            X_scale = StandardScaler().fit_transform(dataset)
-            X_center = X_scale.X
-        else:
-            # Centers only instead of std scaler
-            X_center = X - np.mean(X, axis=0)
-        return X_center
+            # Full z-score standardization (centre AND unit variance), using the
+            # mean and variance learned during fit.
+            return self._scaler.transform(dataset).X
+        # Centers only instead of std scaler, with the training mean.
+        return X - self._mean
 
     def fit(self, dataset):
         """Computes the eigen values and vectors.
@@ -102,7 +120,7 @@ class PCA:
         SVD is generally more numerically stable and is the route real
         libraries take.
         """
-        self.X_center = self.scale(dataset)
+        self.X_center = self.scale(dataset, fitting=True)
         if self.svd:
             # uses SVD
             # SVD factorizes a matrix into a product of 3 other matrices:
@@ -113,17 +131,45 @@ class PCA:
             # comparable to the covariance-matrix eigenvalues (this keeps the
             # ordering identical and makes variance_explained correct).
             self.e_vecs, singular_values, vt = np.linalg.svd(self.X_center.T)
-            self.e_vals = singular_values ** 2
+            # svd returns min(n_features, n_samples) singular values but a full
+            # (n_features, n_features) U. When there are fewer samples than
+            # features the two disagree in length, and sorting the eigenvectors
+            # by an index array shorter than their column count silently drops
+            # components. Pad the missing eigenvalues with 0: those directions
+            # genuinely explain no variance.
+            n_features = self.e_vecs.shape[0]
+            self.e_vals = np.zeros(n_features)
+            self.e_vals[:len(singular_values)] = singular_values ** 2
         else:
-            # uses GEEV right eigen vector on the covariance matrix
+            # uses the symmetric eigensolver on the covariance matrix
             # np.cov expects variables in rows, observations in columns, hence
             # the transpose: cov_matrix has shape (n_features, n_features) and
             # entry (i, j) is the covariance between features i and j.
-            cov_matrix = np.cov(self.X_center.T)
-            # np.linalg.eig solves A x = λ x directly: e_vals holds the
-            # eigenvalues (variance along each component) and the COLUMNS of
-            # e_vecs hold the corresponding eigenvectors (the components).
-            self.e_vals, self.e_vecs = np.linalg.eig(cov_matrix)
+            cov_matrix = np.atleast_2d(np.cov(self.X_center.T))
+            # eigh, not eig. A covariance matrix is symmetric by construction, and
+            # eigh exploits that: it is faster and, crucially, GUARANTEES real
+            # eigenvalues and eigenvectors. The general-purpose eig can return a
+            # complex dtype with negligible imaginary parts, which would then
+            # propagate into the projected coordinates.
+            self.e_vals, self.e_vecs = np.linalg.eigh(cov_matrix)
+        # Order the components once, here, so variance_explained() works
+        # immediately after fit.
+        self._sort_components()
+
+    def _sort_components(self):
+        """Orders the eigenpairs from most to least variance explained.
+
+        Called at the end of fit rather than inside transform. It used to live in
+        transform, which meant variance_explained() raised AttributeError after a
+        plain fit() -- the ordering is a property of the fitted model, not of the
+        data being projected.
+        """
+        # Eigenvalues are not guaranteed to come out sorted, so order them from
+        # largest to smallest variance ([::-1] reverses the ascending argsort).
+        self.sorted_index = np.argsort(self.e_vals)[::-1]
+        self.e_vals_sorted = self.e_vals[self.sorted_index]
+        # Reorder the eigenvectors (columns) to match the sorted eigenvalues.
+        self.e_vecs_sorted = self.e_vecs[:, self.sorted_index]
 
     def transform(self, dataset):
         """
@@ -132,12 +178,6 @@ class PCA:
         to a lower dimension.
         """
         X_center = self.scale(dataset)
-        # Eigenvalues are not guaranteed to come out sorted, so order them from
-        # largest to smallest variance ([::-1] reverses the ascending argsort).
-        self.sorted_index = np.argsort(self.e_vals)[::-1]
-        self.e_vals_sorted = self.e_vals[self.sorted_index]
-        # Reorder the eigenvectors (columns) to match the sorted eigenvalues.
-        self.e_vecs_sorted = self.e_vecs[:, self.sorted_index]
         # transition matrix, or change of base matrix.
         # Keep only the top n_components directions -> shape
         # (n_features, n_components). These columns are the new axes.
