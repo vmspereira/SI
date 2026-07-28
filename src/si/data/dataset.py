@@ -138,7 +138,7 @@ def summary(dataset, format='df'):
             _maxs = np.max(fullds[:, i], axis=0)
             _mins = np.min(fullds[:, i], axis=0)
         except Exception:
-            _means = _vars = _maxs = _mins = np.NAN
+            _means = _vars = _maxs = _mins = np.nan
         stat = {'mean': _means,
                 'var': _vars,
                 'min': _mins,
