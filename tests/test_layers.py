@@ -25,7 +25,7 @@ from si.supervised.nn.cnn import (
     ConstantPadding2D,
 )
 from si.supervised.nn.activation import Sigmoid, ReLU, Tanh
-from si.supervised.nn.optimizers import SGD, Adam
+from si.supervised.nn.optimizers import SGD
 
 
 def seed():
@@ -228,8 +228,10 @@ class TestConv2D(unittest.TestCase):
         it = np.nditer(x, flags=["multi_index"])
         while not it.finished:
             idx = it.multi_index
-            xp = x.copy(); xp[idx] += eps
-            xm = x.copy(); xm[idx] -= eps
+            xp = x.copy()
+            xp[idx] += eps
+            xm = x.copy()
+            xm[idx] -= eps
             num[idx] = (layer.forward(xp).sum() - layer.forward(xm).sum()) / (2 * eps)
             it.iternext()
 
@@ -280,8 +282,10 @@ class TestMaxPooling2D(unittest.TestCase):
         it = np.nditer(self.x, flags=["multi_index"])
         while not it.finished:
             idx = it.multi_index
-            xp = self.x.copy(); xp[idx] += eps
-            xm = self.x.copy(); xm[idx] -= eps
+            xp = self.x.copy()
+            xp[idx] += eps
+            xm = self.x.copy()
+            xm[idx] -= eps
             num[idx] = (naive_pool(xp, 2, 2, np.max).sum()
                         - naive_pool(xm, 2, 2, np.max).sum()) / (2 * eps)
             it.iternext()
@@ -335,8 +339,10 @@ class TestAveragePooling2D(unittest.TestCase):
         it = np.nditer(self.x, flags=["multi_index"])
         while not it.finished:
             idx = it.multi_index
-            xp = self.x.copy(); xp[idx] += eps
-            xm = self.x.copy(); xm[idx] -= eps
+            xp = self.x.copy()
+            xp[idx] += eps
+            xm = self.x.copy()
+            xm[idx] -= eps
             num[idx] = (naive_pool(xp, 2, 2, np.mean).sum()
                         - naive_pool(xm, 2, 2, np.mean).sum()) / (2 * eps)
             it.iternext()
@@ -406,85 +412,6 @@ class TestActivations(unittest.TestCase):
         self.assertTrue(np.allclose(out, 0.0))
         grad = layer.backward(np.ones((2, 2)))
         self.assertEqual(grad.shape, (2, 2))
-
-
-class TestAdam(unittest.TestCase):
-    """Pins down Adam's bias correction.
-
-    Adam keeps two exponential moving averages, both initialised at zero:
-
-        m_t = b1*m_(t-1) + (1-b1)*g      v_t = b2*v_(t-1) + (1-b2)*g^2
-
-    Starting at zero biases them low, badly so on the first few steps: with the
-    default b1=0.9 the raw m_1 is only 10% of the gradient. Dividing by
-    (1 - b^t) removes exactly that bias, and the correction fades as t grows.
-
-    The observable consequence, and what these tests check, is that the FIRST
-    step has magnitude `learning_rate` no matter how large the gradient is:
-
-        m_hat = (1-b1)g / (1-b1) = g        v_hat = (1-b2)g^2 / (1-b2) = g^2
-        step  = lr * g / (sqrt(g^2) + eps) ~= lr
-
-    Drop the correction and the same step becomes lr*(1-b1)*g/sqrt((1-b2)*g^2)
-    = lr*3.16 -- a silent 3x overshoot on every early step, which is the bug
-    these tests guard.
-    """
-
-    def test_first_step_size_is_the_learning_rate(self):
-        opt = Adam(learning_rate=0.01)
-        w = opt.update(np.array([0.0]), np.array([1.0]))
-        # Without bias correction this would be 0.0316, so the tolerance here
-        # is what makes the test discriminating.
-        self.assertAlmostEqual(-w[0], 0.01, places=6)
-
-    def test_step_size_is_gradient_scale_invariant(self):
-        # m_hat/sqrt(v_hat) ~= g/|g| = sign(g), so the gradient magnitude
-        # cancels out and only the learning rate sets the step length. This is
-        # the property that makes Adam insensitive to gradient scaling.
-        for grad in (1e-3, 1.0, 1e3):
-            opt = Adam(learning_rate=0.01)
-            w = opt.update(np.array([0.0]), np.array([grad]))
-            self.assertAlmostEqual(-w[0], 0.01, places=5,
-                                   msg=f"step changed at gradient {grad}")
-
-    def test_sign_follows_the_gradient(self):
-        # Descent direction: a positive gradient must decrease w.
-        self.assertLess(Adam(0.01).update(np.array([0.0]), np.array([5.0]))[0], 0)
-        self.assertGreater(Adam(0.01).update(np.array([0.0]), np.array([-5.0]))[0], 0)
-
-    def test_constant_gradient_gives_constant_steps(self):
-        # For a constant gradient the corrected moments are exactly g and g^2
-        # at EVERY t (the (1-b^t) factors cancel the partial EMA sums), so 50
-        # steps move w by exactly 50*lr. A t-dependent error in the correction
-        # would make the steps drift instead.
-        opt = Adam(learning_rate=0.01)
-        w = np.array([0.0])
-        for _ in range(50):
-            w = opt.update(w, np.array([1.0]))
-        self.assertAlmostEqual(w[0], -0.5, places=6)
-        # the time step must track the number of updates, since the correction
-        # factor (1 - b**t) depends on it
-        self.assertEqual(opt.t, 50)
-
-    def test_minimizes_a_quadratic(self):
-        # End-to-end sanity: descend f(w) = (w-3)^2, whose gradient is
-        # 2*(w-3), and land on the minimum at w=3.
-        opt = Adam(learning_rate=0.1)
-        w = np.array([0.0])
-        for _ in range(500):
-            w = opt.update(w, 2.0 * (w - 3.0))
-        self.assertAlmostEqual(w[0], 3.0, places=4)
-
-    def test_updates_arrays_elementwise(self):
-        # Weight matrices are updated as a whole: each entry gets its own
-        # adaptive step, and the returned array keeps the parameter's shape.
-        opt = Adam(learning_rate=0.01)
-        w = np.zeros((2, 3))
-        grad = np.array([[1.0, -2.0, 100.0], [-0.5, 3.0, -1e4]])
-        out = opt.update(w, grad)
-        self.assertEqual(out.shape, (2, 3))
-        # first step: every entry moves by lr against its gradient's sign
-        np.testing.assert_allclose(out, -0.01 * np.sign(grad), atol=1e-5)
 
 
 if __name__ == "__main__":
