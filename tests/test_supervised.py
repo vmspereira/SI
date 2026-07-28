@@ -227,13 +227,11 @@ class TestDecisionTreeCriteria(unittest.TestCase):
 
     def test_entropy_criterion_handles_string_labels(self):
         # node_probs works off self.classes, so the probability-based entropy
-        # copes with labels np.bincount could not accept. (predict returns the
-        # class *index* rather than the label itself -- a separate, pre-existing
-        # trait of this implementation.)
+        # copes with labels np.bincount could not accept.
         y = np.where(self.y == 0, 'cat', 'dog')
         m = DecisionTree(criterion='entropy')
         m.fit(Dataset(self.X, y))
-        self.assertIn(m.predict(self.X[0]), (0, 1))
+        self.assertIn(m.predict(self.X[0]), ('cat', 'dog'))
 
     def test_calc_impurity_actually_uses_the_selected_criterion(self):
         # Without this, a calc_impurity that ignored self.criterion would still
@@ -254,6 +252,89 @@ class TestDecisionTreeCriteria(unittest.TestCase):
         # above cannot both hold by coincidence
         self.assertNotAlmostEqual(gini(expected_probs),
                                   shannon_entropy(expected_probs))
+
+
+class TestTreePredictionsAreLabels(unittest.TestCase):
+    """predict must return a class LABEL, not a position in `classes`.
+
+    argmax over a leaf's class-distribution vector gives an index into
+    `self.classes`. Returning that index directly only looks correct when the
+    labels happen to be 0..k-1: with labels {1, 2} or {'cat', 'dog'} the index
+    never equals the label, so cost() compared indices against labels and
+    reported 0% accuracy on perfectly separable data. RandomForest inherited
+    the same fault, and additionally tallied votes with np.bincount, which
+    indexes by label VALUE.
+    """
+
+    # separable blobs relabelled several ways; 0/1 is the only set where the
+    # old index-returning behaviour coincided with the labels
+    LABEL_SETS = {
+        'zero_based': (0, 1),
+        'one_based': (1, 2),
+        'sparse_integers': (5, 9),
+        'strings': ('cat', 'dog'),
+    }
+
+    def setUp(self):
+        self.X, base = two_class_blobs(sep=3.0)
+        self.base = base
+
+    def relabel(self, low, high):
+        return np.where(self.base == 0, low, high)
+
+    def test_decision_tree_predicts_labels(self):
+        for name, (low, high) in self.LABEL_SETS.items():
+            with self.subTest(labels=name):
+                y = self.relabel(low, high)
+                m = DecisionTree()
+                m.fit(Dataset(self.X, y))
+                self.assertIn(m.predict(self.X[0]), (low, high))
+
+    def test_decision_tree_cost_is_correct_for_any_label_set(self):
+        # The observable consequence of the bug: this used to be 0.000 for
+        # every label set except the zero-based one.
+        for name, (low, high) in self.LABEL_SETS.items():
+            with self.subTest(labels=name):
+                m = DecisionTree()
+                m.fit(Dataset(self.X, self.relabel(low, high)))
+                self.assertGreater(m.cost(), 0.9)
+
+    def test_random_forest_predicts_labels(self):
+        for name, (low, high) in self.LABEL_SETS.items():
+            with self.subTest(labels=name):
+                y = self.relabel(low, high)
+                m = RandomForest(n_estimators=5)
+                m.fit(Dataset(self.X, y))
+                preds = m.predict(self.X)
+                self.assertEqual(len(preds), len(y))
+                self.assertTrue(set(np.unique(preds)) <= {low, high})
+
+    def test_random_forest_cost_is_correct_for_any_label_set(self):
+        for name, (low, high) in self.LABEL_SETS.items():
+            with self.subTest(labels=name):
+                m = RandomForest(n_estimators=5)
+                m.fit(Dataset(self.X, self.relabel(low, high)))
+                self.assertGreater(m.cost(), 0.9)
+
+    def test_random_forest_takes_a_majority_vote_over_labels(self):
+        # Deterministic check of the combination step, independent of training:
+        # three trees voting cat/cat/dog must yield cat.
+        from si.supervised.ensemble import majority
+
+        self.assertEqual(majority(['cat', 'cat', 'dog']), 'cat')
+        self.assertEqual(majority([9, 5, 9]), 9)
+
+    def test_cross_validation_scores_trees_correctly_with_any_labels(self):
+        # predict_all routes through DecisionTree.predict, so the bug also made
+        # every cross-validated score 0 for non-zero-based labels.
+        from si.util.cv import CrossValidationScore
+
+        for name, (low, high) in self.LABEL_SETS.items():
+            with self.subTest(labels=name):
+                cv = CrossValidationScore(
+                    DecisionTree(), Dataset(self.X, self.relabel(low, high)),
+                    score=accuracy, cv=3, random_state=0)
+                self.assertGreater(np.mean(cv.run()[1]), 0.8)
 
 
 class TestRandomForest(unittest.TestCase):

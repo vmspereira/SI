@@ -28,6 +28,7 @@ import math
 from .model import Model
 from si.data import Dataset
 from .dt import DecisionTree
+from .ensemble import majority
 from si.util import accuracy_score, get_random_subsets
 
 
@@ -104,7 +105,13 @@ class RandomForest(Model):
 
     def predict(self, X):
         # y_preds[s, t] = the vote of tree t for sample s.
-        y_preds = np.empty((X.shape[0], len(self.trees)))
+        #
+        # dtype=object because the votes are LABELS, which may be strings or
+        # integers outside 0..k-1. The previous float buffer plus
+        # np.bincount(...).argmax() assumed labels were small non-negative
+        # integers: bincount indexes by label VALUE, so it silently returned a
+        # bin index rather than a label for any other class set.
+        y_preds = np.empty((X.shape[0], len(self.trees)), dtype=object)
         # Let each tree make a prediction on the data
         for i, tree in enumerate(self.trees):
             # Indices of the features that the tree has trained on
@@ -115,14 +122,12 @@ class RandomForest(Model):
             X_subset = X[:, idx]
             y_preds[:, i] = [tree.predict(sample) for sample in X_subset]
 
-        y_pred = []
-        # For each sample
-        # combine the trees by majority vote: bincount tallies the per-class
-        # votes across trees and argmax picks the most-voted class.
-        for sample_predictions in y_preds:
-            # Select the most common class prediction
-            y_pred.append(np.bincount(sample_predictions.astype('int')).argmax())
-        return y_pred
+        # Combine the trees by majority vote, one vote per tree. `majority`
+        # (shared with Ensemble) tallies the labels themselves and breaks ties
+        # towards the smallest label, so the result is reproducible and works
+        # whatever the labels are.
+        y_pred = [majority(list(sample_votes)) for sample_votes in y_preds]
+        return np.asarray(y_pred)
 
     def cost(self, X=None, y=None):
         X = X if X is not None else self.dataset.X

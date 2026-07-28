@@ -130,6 +130,33 @@ class TestDropout(unittest.TestCase):
         out = layer.forward(x, training=False)
         self.assertTrue(np.allclose(out, x))
 
+    def test_keep_probability_is_validated(self):
+        # `prob` is the KEEP probability and the inverted-dropout mask is
+        # divided by it, so prob=0 was a division by zero: it produced an
+        # all-NaN mask that silently poisoned the forward pass, the loss and
+        # every gradient, behind nothing louder than a RuntimeWarning.
+        for bad in (0.0, -0.1, 1.5, 2):
+            with self.subTest(prob=bad):
+                with self.assertRaises(ValueError):
+                    Dropout(bad)
+
+    def test_keep_everything_is_a_no_op(self):
+        # prob=1.0 is the boundary case and must remain legal: the mask is all
+        # ones divided by one, so the input passes straight through.
+        layer = Dropout(1.0)
+        x = np.arange(6, dtype=float).reshape(2, 3)
+        out = layer.forward(x, training=True)
+        np.testing.assert_allclose(out, x)
+        self.assertFalse(np.isnan(out).any())
+
+    def test_inverted_dropout_preserves_the_expected_magnitude(self):
+        # Scaling survivors by 1/prob keeps E[output] == input, which is what
+        # lets inference be a plain pass-through.
+        seed()
+        layer = Dropout(0.5)
+        out = layer.forward(np.ones((200, 20)), training=True)
+        self.assertAlmostEqual(float(out.mean()), 1.0, places=1)
+
     def test_training_applies_mask(self):
         # During training each unit is independently kept with probability `prob`
         # and zeroed otherwise. With an all-ones input and prob=0.5, a surviving
