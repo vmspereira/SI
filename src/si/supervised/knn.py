@@ -32,30 +32,48 @@ class KNN(Model):
         self.classification = classification
 
     def fit(self, dataset):
+        # KNN is a "lazy" learner: there is no model to estimate at fit time.
+        # We simply memorise the training set; all the work happens at predict
+        # time, when we look up the neighbours of the query point.
         self.dataset = dataset
         self.is_fitted = True
 
     def get_neighbors(self, x):
+        # Compute the (Euclidean / L2) distance from the query point x to every
+        # training sample. l2_distance broadcasts x against the rows of
+        # self.dataset.X, returning a 1D array of length n_samples.
         distances = l2_distance(x, self.dataset.X)
+        # argsort gives the indices that would sort the distances ascending, so
+        # the first entries are the closest training points.
         sorted_index = np.argsort(distances)
+        # Keep only the indices of the k (= num_neighbors) nearest points.
         return sorted_index[:self.num_neighbors]
 
     def predict(self, x):
         assert self.is_fitted, 'Model must be fit before predicting'
+        # Find the k nearest training points and collect their target values.
         neighbors = self.get_neighbors(x)
         values = self.dataset.y[neighbors].tolist()
         if self.classification:
             # for classification we consider as label the modal one.
+            # i.e. a majority vote among the k neighbours: the label that
+            # appears most often (set(values) are the candidate labels,
+            # values.count is the tie-breaking key).
             prediction = max(set(values), key=values.count)
         else:
             # for regression we consider the average of the k neighbor labels.
+            # the prediction is the mean target of the k neighbours.
             prediction = sum(values)/len(values)
         return prediction
 
     def cost(self, X=None, y=None):
+        # Default to the stored training data if no evaluation set is given.
         X = X if X is not None else self.dataset.X
         y = y if y is not None else self.dataset.y
 
+        # predict() expects one sample at a time. We transpose X so that
+        # apply_along_axis (axis=0) feeds each original row (a sample) to
+        # predict, producing one prediction per sample.
         y_pred = np.ma.apply_along_axis(self.predict,
                                         axis=0, arr=X.T)
         return accuracy_score(y, y_pred)

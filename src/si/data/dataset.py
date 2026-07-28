@@ -15,11 +15,24 @@ class Dataset:
     def __init__(self, X=None, y=None,
                  xnames: list = None,
                  yname: str = None):
-        """ Tabular Dataset"""
+        """ Tabular Dataset.
+
+        This is the core data container passed to every model and transformer
+        in the library. It bundles together:
+          * X : the feature matrix, shape (n_samples, n_features).
+          * y : the target/label vector, shape (n_samples,), or None for
+                unlabeled (unsupervised) data.
+          * xnames : the name of each feature column.
+          * yname  : the name of the target column.
+        Keeping names alongside the arrays lets transformers (e.g. feature
+        selection) track WHICH features survive a transformation.
+        """
         if X is None:
             raise Exception("Trying to instantiate a Dataset without any data")
         self.X = X
         self.y = y
+        # If no feature names are supplied, auto-generate placeholders (one per
+        # column of X); default the target name to 'y'.
         self._xnames = xnames if xnames else label_gen(X.shape[1])
         self._yname = yname if yname else 'y'
 
@@ -36,6 +49,8 @@ class Dataset:
         """
         data = np.genfromtxt(filename, delimiter=sep)
         if labeled:
+            # Convention: when the data is labeled, the LAST column is the
+            # target y and all preceding columns are the features X.
             X = data[:, 0:-1]
             y = data[:, -1]
         else:
@@ -113,11 +128,17 @@ class Dataset:
         return self.toDataframe().to_html()
     
     def getXy(self):
+        # Convenience accessor returning the (features, target) pair, the form
+        # most models consume in their `fit` method.
         return self.X, self.y
 
 
 def summary(dataset, format='df'):
     """ Returns the statistics of a dataset(mean, std, max, min)
+
+    Computes per-column descriptive statistics so students can quickly inspect
+    the scale and spread of each feature (and the target) -- handy for spotting
+    whether standardization or outlier removal is needed before modelling.
 
     :param dataset: A Dataset object
     :type dataset: si.data.Dataset
@@ -125,12 +146,15 @@ def summary(dataset, format='df'):
     :type format: str, optional
     """
     if dataset.hasLabel():
+        # Glue the target on as an extra column so it is summarized too.
+        # reshape turns y from (n,) into (n, 1) so hstack can append it.
         fullds = np.hstack((dataset.X, dataset.y.reshape(len(dataset.y), 1)))
         columns = dataset._xnames[:]+[dataset._yname]
     else:
         fullds = dataset.X
         columns = dataset._xnames[:]
     stats = {}
+    # Walk every column and record its mean, variance, min and max.
     for i in range(fullds.shape[1]):
         try:
             _means = np.mean(fullds[:, i], axis=0)

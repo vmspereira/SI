@@ -6,6 +6,22 @@
 # ---------------------------------------------------------------------------
 """Random Forrest module"""
 # ---------------------------------------------------------------------------
+# A Random Forest is an *ensemble* of decision trees. A single tree has high
+# variance: small changes in the data give very different trees, and a deep tree
+# overfits. The forest reduces this variance by averaging many de-correlated
+# trees, each trained on a slightly different view of the data. Predictions are
+# combined by majority vote (classification).
+#
+# Two sources of randomness make the trees different from one another:
+#   1. Bagging (Bootstrap AGGregatING): each tree is trained on a random subset
+#      / bootstrap sample of the training rows.
+#   2. Feature subsampling: at training each tree only sees a random subset of
+#      the features (here, by default sqrt(n_features)). This stops one strong
+#      feature from dominating every tree, further de-correlating them.
+#
+# Use a Random Forest when you want a strong, low-variance, low-tuning baseline
+# that handles non-linear relationships and feature interactions out of the box.
+# ---------------------------------------------------------------------------
 
 import numpy as np
 import math
@@ -54,19 +70,27 @@ class RandomForest(Model):
         n_features = np.shape(X)[1]
         # If max_features have not been defined => select it as
         # sqrt(n_features)
+        # sqrt(n_features) is the classic Random Forest default for
+        # classification: enough features for useful splits, few enough to keep
+        # the trees de-correlated.
         if not self.max_features:
             self.max_features = int(math.sqrt(n_features))
 
         # Choose one random subset of the data for each tree
+        # (bagging: one bootstrap/random sample of the rows per tree).
         subsets = get_random_subsets(X, y, self.n_estimators)
 
         for i in range(self.n_estimators):
             X_subset, y_subset = subsets[i]
             # Feature bagging (select random subsets of the features)
+            # pick max_features column indices at random for this tree, so each
+            # tree learns from a different feature view.
             idx = np.random.choice(range(n_features), size=self.max_features, replace=True)
             # Save the indices of the features for prediction
+            # we must apply the SAME columns at predict time, so remember them.
             self.trees[i].feature_indices = idx
             # Choose the features corresponding to the indices
+            # restrict this tree's training data to its chosen columns.
             X_subset = X_subset[:, idx]
             # Fit the tree to the data
             self.trees[i].fit(Dataset(X_subset, y_subset))
@@ -74,10 +98,12 @@ class RandomForest(Model):
         self.is_fitted = True
         
     def predict(self, X):
+        # y_preds[s, t] = the vote of tree t for sample s.
         y_preds = np.empty((X.shape[0], len(self.trees)))
         # Let each tree make a prediction on the data
         for i, tree in enumerate(self.trees):
             # Indices of the features that the tree has trained on
+            # reuse exactly the columns this tree saw during fit.
             idx = tree.feature_indices
             # DecisionTree.predict works one sample at a time, so predict each
             # row of the (feature-bagged) input separately.
@@ -86,6 +112,8 @@ class RandomForest(Model):
 
         y_pred = []
         # For each sample
+        # combine the trees by majority vote: bincount tallies the per-class
+        # votes across trees and argmax picks the most-voted class.
         for sample_predictions in y_preds:
             # Select the most common class prediction
             y_pred.append(np.bincount(sample_predictions.astype('int')).argmax())

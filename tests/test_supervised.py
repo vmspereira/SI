@@ -39,10 +39,17 @@ def accuracy(y_true, y_pred):
 
 class TestKNN(unittest.TestCase):
     def setUp(self):
+        # Two well-separated Gaussian blobs: nearest-neighbour voting should be
+        # almost perfect because each point's neighbours are nearly always in
+        # its own blob.
         self.X, self.y = two_class_blobs()
         self.ds = Dataset(self.X, self.y)
 
     def test_classification_separates(self):
+        # Usage pattern: construct -> fit(dataset) -> predict(sample). With k=3
+        # neighbours on linearly separable blobs the model should classify the
+        # training data with >95% accuracy; cost() reports that training
+        # accuracy.
         m = KNN(num_neighbors=3)
         m.fit(self.ds)
         self.assertTrue(m.is_fitted)
@@ -52,10 +59,16 @@ class TestKNN(unittest.TestCase):
         self.assertGreater(m.cost(), 0.95)
 
     def test_requires_fit(self):
+        # Calling predict() before fit() must fail loudly rather than return
+        # garbage: there is no stored training set to find neighbours in.
         with self.assertRaises(AssertionError):
             KNN(num_neighbors=3).predict(self.X[0])
 
     def test_regression_mode_returns_mean(self):
+        # With classification=False, KNN averages the targets of the k nearest
+        # neighbours instead of voting, so it returns a continuous value. Here
+        # targets are a linear function of feature 0; we only check the output
+        # is a real-valued scalar (regression output), not a class label.
         y = self.X[:, 0] * 2.0
         m = KNN(num_neighbors=5, classification=False)
         m.fit(Dataset(self.X, y))
@@ -65,25 +78,39 @@ class TestKNN(unittest.TestCase):
 
 class TestLinearRegression(unittest.TestCase):
     def setUp(self):
+        # Build a perfectly linear, NOISE-FREE target so the true parameters are
+        # known exactly. Because there is no noise, a correct solver can recover
+        # the coefficients precisely, which makes the tests below sharp.
         rng = np.random.RandomState(1)
         self.X = rng.rand(80, 2)
-        # y = 1 + 2*x0 + 3*x1  (no noise)
+        # y = 1 + 2*x0 + 3*x1  (no noise); theta = [intercept, w0, w1] = [1, 2, 3]
         self.y = 1 + 2 * self.X[:, 0] + 3 * self.X[:, 1]
         self.ds = Dataset(self.X, self.y)
 
     def test_closed_form_recovers_coefficients(self):
+        # The normal-equation (closed-form, gd=False, no regularization lbd=0)
+        # solution is exact on noise-free linear data: it must recover the true
+        # coefficients [intercept=1, 2, 3] to machine precision and drive the
+        # training cost essentially to zero.
         m = LinearRegression(gd=False, lbd=0)
         m.fit(self.ds)
         np.testing.assert_allclose(m.theta, [1, 2, 3], atol=1e-6)
         self.assertLess(m.cost(), 1e-10)
 
     def test_gradient_descent_fits(self):
+        # The iterative gradient-descent solver (gd=True) optimizes the same
+        # objective. After enough epochs it should converge close to the exact
+        # closed-form coefficients, but only approximately (looser atol=0.2)
+        # since GD stops short of the analytic optimum.
         m = LinearRegression(gd=True, lbd=0, epochs=5000, lr=0.1)
         m.fit(self.ds)
         # GD should get close to the closed-form solution
         np.testing.assert_allclose(m.theta, [1, 2, 3], atol=0.2)
 
     def test_predict_single_sample(self):
+        # End-to-end usage check: after a closed-form fit on noise-free data,
+        # predicting on a training point must reproduce its target almost
+        # exactly.
         m = LinearRegression(gd=False, lbd=0)
         m.fit(self.ds)
         self.assertAlmostEqual(float(m.predict(self.X[0])), float(self.y[0]), places=4)
@@ -95,6 +122,9 @@ class TestLogisticRegression(unittest.TestCase):
         self.ds = Dataset(self.X, self.y)
 
     def test_separates_classes(self):
+        # On linearly separable blobs, gradient-descent logistic regression
+        # should learn a decision boundary that classifies the training set with
+        # >95% accuracy.
         m = LogisticRegression(epochs=2000, lr=0.1)
         m.fit(self.ds)
         self.assertTrue(m.is_fitted)
@@ -102,6 +132,9 @@ class TestLogisticRegression(unittest.TestCase):
         self.assertGreater(accuracy(self.y, preds), 0.95)
 
     def test_cost_decreases(self):
+        # Sanity check that training is actually optimizing: the loss recorded at
+        # the last epoch must be lower than at the first. If the cost did not
+        # fall, the gradient sign or update step would be wrong.
         m = LogisticRegression(epochs=500, lr=0.1)
         m.fit(self.ds)
         first = m.history[0][1]
@@ -115,6 +148,8 @@ class TestDecisionTree(unittest.TestCase):
         self.ds = Dataset(self.X, self.y)
 
     def test_fits_and_classifies(self):
+        # A depth-3 tree easily splits two well-separated blobs, so training
+        # accuracy (cost()) should exceed 95%.
         m = DecisionTree(max_depth=3)
         m.fit(self.ds)
         self.assertTrue(m.is_fitted)
@@ -122,10 +157,14 @@ class TestDecisionTree(unittest.TestCase):
         self.assertGreater(m.cost(), 0.95)
 
     def test_requires_fit(self):
+        # Predicting before fit() must raise: there is no tree to traverse yet.
         with self.assertRaises(AssertionError):
             DecisionTree().predict(self.X[0])
 
     def test_handles_degenerate_split(self):
+        # Edge case: all feature rows are identical, so no split can separate the
+        # classes. A correct implementation must fall back to a leaf (majority
+        # vote) rather than crash trying to find an impossible split.
         # identical feature rows -> no valid split exists; must not crash
         X = np.ones((6, 3))
         y = np.array([0, 0, 0, 1, 1, 1])
@@ -141,6 +180,9 @@ class TestRandomForest(unittest.TestCase):
         self.ds = Dataset(self.X, self.y)
 
     def test_fits_and_classifies(self):
+        # A forest of 10 trees (each trained on a bootstrap sample) aggregates
+        # by majority vote. predict() accepts the whole matrix and returns one
+        # label per row; on separable data accuracy should be >90%.
         m = RandomForest(n_estimators=10, max_depth=3)
         m.fit(self.ds)
         self.assertTrue(m.is_fitted)
@@ -149,6 +191,8 @@ class TestRandomForest(unittest.TestCase):
         self.assertGreater(accuracy(self.y, preds), 0.9)
 
     def test_cost_reports_accuracy(self):
+        # cost() should report the ensemble's training accuracy, consistent with
+        # the direct accuracy() computed above.
         m = RandomForest(n_estimators=10, max_depth=3)
         m.fit(self.ds)
         self.assertGreater(m.cost(), 0.9)
@@ -156,12 +200,17 @@ class TestRandomForest(unittest.TestCase):
 
 class TestNaiveBayes(unittest.TestCase):
     def setUp(self):
+        # This NaiveBayes implementation models categorical/count features, so
+        # the continuous blob features are binarized (>0 -> 1, else 0) into 0/1
+        # indicators before fitting.
         X, self.y = two_class_blobs(n_features=4)
         # NaiveBayes here expects categorical/count features
         self.X = (X > 0).astype(int)
         self.ds = Dataset(self.X, self.y)
 
     def test_fits_and_classifies(self):
+        # With informative binary features and separable classes, the Naive
+        # Bayes posterior picks the right class >90% of the time.
         m = NaiveBayes()
         m.fit(self.ds)
         self.assertTrue(m.is_fitted)
@@ -170,12 +219,19 @@ class TestNaiveBayes(unittest.TestCase):
         self.assertGreater(accuracy(self.y, preds), 0.9)
 
     def test_probabilities_sum_to_one(self):
+        # predict_proba returns a posterior distribution over classes, so every
+        # row must sum to 1.0. A violation would mean the normalization step is
+        # wrong.
         m = NaiveBayes()
         m.fit(self.ds)
         probas = m.predict_proba(self.X)
         np.testing.assert_allclose(probas.sum(axis=1), 1.0, atol=1e-6)
 
     def test_handles_imbalanced_classes(self):
+        # Regression guard: when classes have different sample counts, the
+        # per-class feature groups have different lengths. The implementation
+        # must keep them in a Python list (not stack them into one NumPy array,
+        # which would either raise or silently build a ragged/object array).
         # different per-class sizes exercise the per-class list (not a ragged array)
         X = np.vstack([self.X[:10], self.X[30:]])
         y = np.array([0] * 10 + [1] * 30)
@@ -190,13 +246,20 @@ class TestLDA(unittest.TestCase):
         self.ds = Dataset(self.X, self.y)
 
     def test_projects_and_classifies(self):
+        # Linear Discriminant Analysis learns a single projection direction w
+        # (one weight per feature) that best separates the two classes.
         m = LDA()
         m.fit(self.ds)
         self.assertEqual(m.w.shape, (self.X.shape[1],))
         # transform projects onto the discriminant direction (one value per sample)
+        # transform() projects each sample onto w, collapsing it to one scalar,
+        # so the result is 1-D with one value per sample.
         proj = m.transform(self.ds)
         self.assertEqual(proj.shape, (self.X.shape[0],))
         preds = m.predict(self.X)
+        # Classification thresholds the projection at the midpoint between the
+        # two class means; with that threshold the label orientation is fixed
+        # and accuracy on separable blobs should exceed 90%.
         # with a proper midpoint threshold the label orientation is fixed
         self.assertGreater(accuracy(self.y, preds), 0.9)
 
@@ -207,6 +270,9 @@ class TestLDA(unittest.TestCase):
 )
 class TestSVM(unittest.TestCase):
     def setUp(self):
+        # The SVM hinge-loss / dual formulation is defined for labels in
+        # {-1, +1} (the margin term y*(w.x+b) only makes sense with signed
+        # labels), so the {0, 1} blob labels are remapped to {-1, +1}.
         X, y = two_class_blobs()
         self.X = X
         # SVM expects labels in {-1, +1}
@@ -214,6 +280,10 @@ class TestSVM(unittest.TestCase):
         self.ds = Dataset(self.X, self.y)
 
     def test_fits_and_classifies(self):
+        # A linear-kernel SVM should find a separating hyperplane on the
+        # linearly separable blobs and classify the training set with >90%
+        # accuracy. (Skipped entirely if the optional cvxopt QP solver is
+        # missing - see the class decorator.)
         from si.supervised.svm import SVM, linear_kernel
 
         m = SVM(kernel=linear_kernel)

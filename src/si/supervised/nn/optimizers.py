@@ -12,7 +12,14 @@ from abc import ABC, abstractmethod
 
 
 class Optimizer(ABC):
-    """Define how to update the learnable parameters"""
+    """Define how to update the learnable parameters.
+
+    An optimizer answers one question: given a parameter ``w`` and the
+    gradient of the loss w.r.t. it (``grad_wrt_w`` = dE/dw computed in the
+    backward pass), how should ``w`` be changed to reduce the loss? Every
+    optimizer below is a different recipe for that update, all built on the
+    core idea of stepping *against* the gradient (gradient descent).
+    """
     @abstractmethod
     def update(self, w, grad_wrt_w):
         raise NotImplementedError
@@ -68,11 +75,19 @@ class SGD(Optimizer):
 
     def update(self, w, grad_wrt_w):
         # If not initialized
+        # w_updt holds the running "velocity" (the smoothed update
+        # direction); start it at zeros with the same shape as w.
         if self.w_updt is None:
             self.w_updt = np.zeros(np.shape(w))
-        # Use momentum if set
+        # Use momentum if set.
+        # Exponential moving average of the gradient: blend the previous
+        # velocity (weight = momentum) with the new gradient. With
+        # momentum=0 this reduces to plain SGD (w_updt = grad_wrt_w);
+        # higher momentum smooths out noisy/oscillating gradients and
+        # accelerates along consistent directions.
         self.w_updt = self.momentum * self.w_updt + (1 - self.momentum) * grad_wrt_w
-        # Move against the gradient to minimize loss
+        # Move against the gradient to minimize loss: w <- w - lr * velocity
+        # The learning rate scales the step size.
         return w - self.learning_rate * self.w_updt
 
 
@@ -89,8 +104,18 @@ class Adam(Optimizer):
         calculation in each mini batch for every iteration. The update rules for
         Adam optimizer gradient moving averages and the squared gradient
         accordingly, are expressed by the following equations:
-        
-          
+
+            m_t = b1 * m_(t-1) + (1 - b1) * g_t           (1st moment: mean)
+            v_t = b2 * v_(t-1) + (1 - b2) * g_t^2         (2nd moment: variance)
+
+        Because m and v start at 0 they are biased towards 0 early on, so a
+        bias-corrected estimate (m_hat, v_hat) is used. The parameter step
+        is then the mean divided by the (root of the) variance:
+
+            w_(t+1) = w_t - lr * m_hat / (sqrt(v_hat) + eps)
+
+        Dividing by sqrt(v_hat) gives each parameter its own adaptive step
+        size: parameters with large, noisy gradients take smaller steps.
 
         Args:
             learning_rate (float, optional): learning rate. Defaults to 0.001.
@@ -108,17 +133,22 @@ class Adam(Optimizer):
         self.b2 = b2
 
     def update(self, w, grad_wrt_w):
-        # If not initialized
+        # If not initialized: first and second moment running averages.
         if self.m is None:
             self.m = np.zeros(np.shape(grad_wrt_w))
             self.v = np.zeros(np.shape(grad_wrt_w))
 
+        # 1st moment: EMA of the gradient (estimate of its mean).
         self.m = self.b1 * self.m + (1 - self.b1) * grad_wrt_w
+        # 2nd moment: EMA of the squared gradient (estimate of its variance).
         self.v = self.b2 * self.v + (1 - self.b2) * np.power(grad_wrt_w, 2)
 
+        # Bias correction: m and v are biased toward 0 because they were
+        # initialized at 0; dividing by (1 - b) rescales them.
         m_hat = self.m / (1 - self.b1)
         v_hat = self.v / (1 - self.b2)
 
+        # Adaptive step: mean / sqrt(variance). eps avoids division by 0.
         self.w_updt = self.learning_rate * m_hat / (np.sqrt(v_hat) + self.eps)
 
         return w - self.w_updt
