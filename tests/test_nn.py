@@ -7,6 +7,8 @@
 # layer's backpropagation-through-time agrees with a finite-difference
 # gradient, the same standard the Conv2D backward pass is held to.
 # ----------------------------------------------------------------------------
+import contextlib
+import io
 import unittest
 import warnings
 
@@ -29,9 +31,8 @@ def xor_dataset():
 
 
 def quiet_nn(**kwargs):
-    # step > epochs keeps the progress printing out of the test output
+    # verbose=False is now genuinely silent, so no `step` workaround is needed.
     kwargs.setdefault('verbose', False)
-    kwargs.setdefault('step', 10 ** 9)
     return NN(**kwargs)
 
 
@@ -148,6 +149,75 @@ class TestNNContainer(unittest.TestCase):
     def test_str_lists_the_layers(self):
         net = self.build()
         self.assertEqual(len(str(net).splitlines()), 4)
+
+    def test_verbose_false_prints_nothing(self):
+        # verbose=False used to still print, just with end="\r" so each line
+        # overwrote the last -- the flag meant "print compactly", and there was
+        # no way to train quietly except setting step above epochs.
+        buffer = io.StringIO()
+        net = self.build(epochs=3, step=1, verbose=False)
+        with contextlib.redirect_stdout(buffer):
+            net.fit(self.ds)
+        self.assertEqual(buffer.getvalue(), "")
+
+    def test_verbose_true_reports_every_step_epochs(self):
+        buffer = io.StringIO()
+        net = self.build(epochs=6, step=2, verbose=True)
+        with contextlib.redirect_stdout(buffer):
+            net.fit(self.ds)
+        lines = buffer.getvalue().strip().splitlines()
+        # epochs 2, 4 and 6 -> three reports, each on its own line
+        self.assertEqual(len(lines), 3)
+        self.assertIn("epoch 2/6", lines[0])
+        self.assertIn("loss=", lines[0])
+
+
+class TestNNInputSizeInference(unittest.TestCase):
+    """A layer may omit its input_size and take it from the layer before it."""
+
+    def setUp(self):
+        np.random.seed(42)
+        self.ds = xor_dataset()
+
+    def test_infers_input_size_from_the_previous_layer(self):
+        net = quiet_nn()
+        net.add(Dense(2, 4))
+        net.add(Dense(None, 3))
+        self.assertEqual(net.layers[1].input_size, 4)
+
+    def test_looks_past_shape_preserving_layers(self):
+        # Activations carry no output size of their own, so the search has to
+        # walk back past them to the last Dense.
+        net = quiet_nn()
+        net.add(Dense(2, 8))
+        net.add(Tanh())
+        net.add(Dense(None, 5))
+        self.assertEqual(net.layers[2].input_size, 8)
+
+    def test_an_inferred_network_still_trains(self):
+        # End-to-end: only the first layer states its input size, and the
+        # network still solves XOR.
+        net = quiet_nn(epochs=500, optimizer=Adam(0.1))
+        net.add(Dense(2, 4))
+        net.add(Tanh())
+        net.add(Dense(None, 1))
+        net.add(Sigmoid())
+        net.fit(self.ds)
+        preds = (net.predict(self.ds.X) > 0.5).astype(float)
+        np.testing.assert_array_equal(preds, self.ds.y)
+
+    def test_the_first_layer_cannot_infer(self):
+        # Nothing precedes it, so there is no output size to take.
+        net = quiet_nn()
+        with self.assertRaises(ValueError) as ctx:
+            net.add(Dense(None, 4))
+        self.assertIn("first layer", str(ctx.exception))
+
+    def test_explicit_sizes_are_left_alone(self):
+        net = quiet_nn()
+        net.add(Dense(2, 5))
+        net.add(Dense(5, 1))
+        self.assertEqual([layer.input_size for layer in net.layers], [2, 5])
 
 
 class TestRNNLayer(unittest.TestCase):
