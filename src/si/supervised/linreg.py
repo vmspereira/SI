@@ -41,7 +41,7 @@ class LinearRegression(Model):
 
     def train_closed(self, X, y):
         """ Uses closed form linear algebra to fit the model. 
-            Prefered to GD when some assumptions are met.
+            Preferred to GD when some assumptions are met.
             
             theta = inv(XT*X)*XT*y
             -----------------------------------------------------------------
@@ -93,9 +93,9 @@ class LinearRegression(Model):
             The regularization is not applied to the intercept (bias) term.
             You may, as an exercise, derive the closed form.
             
-            The closed form computation of weight can not be applyied in certain cases, such as,
-            when the det(XT X) is zero or when the number of data points is not large enought. 
-            Indeed, it can be demonstrated that when P >> N (The Curse of dimentionality), the
+            The closed form computation of weight can not be applied in certain cases, such as,
+            when the det(XT X) is zero or when the number of data points is not large enough.
+            Indeed, it can be demonstrated that when P >> N (The Curse of dimensionality), the
             
                  inv(XT X) ~ 1/det(XT X) -> inf
                  
@@ -115,7 +115,7 @@ class LinearRegression(Model):
         The error between the predictions (XW) and the real values is
             E = XW-Y
         
-        The cost funtion J is the Mean Square Error (MSE).
+        The cost function J is the Mean Square Error (MSE).
         whose gradient (impact of the weights in the error) is 
         
             dJ/dW = 1/m (X W - Y) X   

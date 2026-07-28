@@ -14,7 +14,7 @@ import numpy as np
 class Layer(ABC):
     def __init__(self):
         """Abstract class for layers.
-        A layer is a funtion that takes an input and produces an output.
+        A layer is a function that takes an input and produces an output.
         The function may have learnable parameters, such as weights.
         """
         self.input = None
@@ -37,7 +37,7 @@ class Layer(ABC):
         contributed to an error, such as, prediction errors.
 
         This is achieved using derivatives:
-        dE/dX tells us how much X contibuted to the error E.
+        dE/dX tells us how much X contributed to the error E.
 
         Using the chain rule we can propagate errors across each layer
         or function:
@@ -50,7 +50,7 @@ class Layer(ABC):
         can adjust the parameter. If w is a parameter whose contribution
         to the final error is dE_total/dw, the value of w is adjusted to
         w = w - lr * dE_total/dw.
-        The learning rate (lr) controles the the learning speed...
+        The learning rate (lr) controls the learning speed...
         Note: learning too fast may lead to 'bad' learning, or not learning
         what you should.
         """
@@ -63,7 +63,7 @@ class Dense(Layer):
         """Fully Connected layer.
         
         A dense layer is a set of linear functions wni * xni + ... + w0i * x0i + bi.
-        The w and b are learnable parameters, that are usualy randomly initialized.
+        The w and b are learnable parameters, that are usually randomly initialized.
 
         :param input_size: the input size.
         :param output_size: the output size.
@@ -122,12 +122,12 @@ class Dense(Layer):
 class Flatten(Layer):
     """A flatten layer.
     
-       Flattens all but the 1st dimention.
+       Flattens all but the 1st dimension.
     """
 
     def forward(self, input, training=True):
         self.input_shape = input.shape
-        # flattens all but the 1st dimention
+        # flattens all but the 1st dimension
         output = input.reshape(input.shape[0], -1)
         return output
 
@@ -158,7 +158,7 @@ class Reshape(Layer):
         return accum_grad.reshape(self.prev_shape)
 
     def __str__(self):
-        return "Flatten"
+        return "Reshape"
 
 
 class Dropout(Layer):
@@ -279,4 +279,4 @@ class BatchNormalization(Layer):
         return output_error
 
     def __str__(self):
-        return f"BatchNormalization"
+        return "BatchNormalization"

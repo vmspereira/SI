@@ -17,7 +17,7 @@ class Dataset:
                  yname: str = None):
         """ Tabular Dataset"""
         if X is None:
-            raise Exception("Trying to instanciate a DataSet without any data")
+            raise Exception("Trying to instantiate a Dataset without any data")
         self.X = X
         self.y = y
         self._xnames = xnames if xnames else label_gen(X.shape[1])
@@ -25,14 +25,14 @@ class Dataset:
 
     @classmethod
     def from_data(cls, filename, sep=",", labeled=True):
-        """Creates a DataSet from a data file.
+        """Creates a Dataset from a data file.
 
         :param filename: The filename
         :type filename: str
         :param sep: attributes separator, defaults to ","
         :type sep: str, optional
-        :return: A DataSet object
-        :rtype: DataSet
+        :return: A Dataset object
+        :rtype: Dataset
         """
         data = np.genfromtxt(filename, delimiter=sep)
         if labeled:

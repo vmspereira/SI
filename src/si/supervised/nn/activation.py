@@ -27,7 +27,7 @@ class ActivationFunction(Layer):
 
     @abstractmethod
     def prime(self, x, **kwargs):
-        """Compute the primeient of the activation function wrt the input"""
+        """Compute the derivative of the activation function wrt the input"""
         raise NotImplementedError
 
     def __call__(self, z):

@@ -82,7 +82,6 @@ def train_test_split(dataset, split:float=0.8):
 
 def get_random_subsets(X, y, n_subsets, replacements=True):
     """ Return random subsets (with replacements) of the data """
-    from si.data import Dataset
     n_samples = np.shape(X)[0]
     # Concatenate x and y and do a random shuffle
     indices = np.arange(X.shape[0])

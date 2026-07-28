@@ -22,7 +22,7 @@ class Transformer(ABC):
         """Transforms a dataset.
 
         :param dataset: A dataset to transform.
-        :param inline: If the tranformation is to be applyied inline to the input dataset\
+        :param inline: If the transformation is to be applied inline to the input dataset\
             or if a new transformed dataset is to be generated.
         """
         raise NotImplementedError
