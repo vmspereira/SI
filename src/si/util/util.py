@@ -80,6 +80,23 @@ def train_test_split(dataset, split:float=0.8):
     test = Dataset(dataset.X[test_mask], dataset.y[test_mask], dataset._xnames, dataset._yname)
     return train, test
 
+def predict_all(model, X):
+    """Predictions for every row of `X`, whichever convention `model` uses.
+
+    Models in this library disagree about what `predict` takes: some want a
+    single 1-D sample, others a whole 2-D batch (see `Model.predicts_batch`).
+    Anything that scores an arbitrary model has to cope with both, and the
+    shape of the data cannot settle it -- so read the model's declaration.
+
+    :param model: a fitted model.
+    :param X: numpy.array of shape (n_samples, n_features).
+    :returns: numpy.array with one prediction per row of X.
+    """
+    if getattr(model, 'predicts_batch', False):
+        return np.asarray(model.predict(X))
+    return np.asarray([model.predict(row) for row in X])
+
+
 def get_random_subsets(X, y, n_subsets, replacements=True):
     """ Return random subsets (with replacements) of the data """
     n_samples = np.shape(X)[0]
