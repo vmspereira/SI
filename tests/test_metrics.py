@@ -56,6 +56,32 @@ class TestClassificationMetrics(unittest.TestCase):
         self.assertEqual(cm.loc[0, 1], 1)   # true 0 predicted 1
         self.assertEqual(cm.loc[1, 1], 2)   # true 1 predicted 1
 
+    def test_confusion_matrix_diagonal_holds_the_correct_predictions(self):
+        # What a confusion matrix adds over plain accuracy: it separates the
+        # kinds of mistake. Here every error is a false positive (true 0
+        # predicted 1) and there are no false negatives.
+        y_true = np.array([0, 0, 0, 1, 1])
+        y_pred = np.array([0, 1, 1, 1, 1])
+        cm = confusion_matrix(y_true, y_pred)
+        self.assertEqual(cm.loc[0, 1], 2)          # false positives
+        self.assertEqual(cm.loc[1].get(0, 0), 0)   # no false negatives
+        # the diagonal sums to the number of correct predictions
+        self.assertEqual(cm.loc[0, 0] + cm.loc[1, 1], 3)
+
+    def test_confusion_matrix_output_format(self):
+        # The parameter is `output_format`; it used to be named `format`, which
+        # shadowed the builtin inside the function body.
+        y_true = np.array([0, 1])
+        y_pred = np.array([0, 1])
+        import pandas as pd
+
+        self.assertIsInstance(confusion_matrix(y_true, y_pred), pd.DataFrame)
+        self.assertIsInstance(
+            confusion_matrix(y_true, y_pred, output_format='df'), pd.DataFrame)
+        # any other value returns the crosstab unchanged
+        raw = confusion_matrix(y_true, y_pred, output_format='raw')
+        self.assertEqual(raw.shape, (2, 2))
+
 
 class TestRegressionMetrics(unittest.TestCase):
     def setUp(self):

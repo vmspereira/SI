@@ -176,6 +176,86 @@ class TestDecisionTree(unittest.TestCase):
         self.assertIn(m.predict(X[0]), (0, 1))
 
 
+class TestDecisionTreeCriteria(unittest.TestCase):
+    """gini and entropy are interchangeable impurity measures."""
+
+    def setUp(self):
+        self.X, self.y = two_class_blobs()
+        self.ds = Dataset(self.X, self.y)
+
+    def test_defaults_to_gini(self):
+        self.assertEqual(DecisionTree().criterion, 'gini')
+
+    def test_both_criteria_train_and_classify(self):
+        for criterion in ('gini', 'entropy'):
+            with self.subTest(criterion=criterion):
+                m = DecisionTree(criterion=criterion)
+                m.fit(self.ds)
+                self.assertTrue(m.is_fitted)
+                preds = [m.predict(row) for row in self.X]
+                self.assertGreater(accuracy(self.y, preds), 0.9)
+
+    def test_unknown_criterion_is_rejected_at_construction(self):
+        # Caught in __init__ rather than surfacing as a confusing failure part
+        # way through fit().
+        with self.assertRaises(ValueError):
+            DecisionTree(criterion='chi-squared')
+
+    def test_impurity_measures_agree_on_purity_and_disagree_on_scale(self):
+        from si.supervised.dt import gini, shannon_entropy
+
+        pure = np.array([1.0, 0.0])
+        # both are exactly 0 for a pure node -- nothing left to split
+        self.assertAlmostEqual(gini(pure), 0.0)
+        self.assertAlmostEqual(shannon_entropy(pure), 0.0)
+
+        # both peak on a balanced node, but at different maxima:
+        # gini at 1 - 1/k, entropy at log2(k)
+        for k in (2, 4):
+            balanced = np.full(k, 1.0 / k)
+            self.assertAlmostEqual(gini(balanced), 1 - 1.0 / k)
+            self.assertAlmostEqual(shannon_entropy(balanced), np.log2(k))
+
+    def test_shannon_entropy_matches_the_label_based_entropy(self):
+        # Same quantity, computed from probabilities rather than raw labels so it
+        # mirrors gini's interface and works for non-integer labels.
+        from si.supervised.dt import entropy, shannon_entropy
+
+        labels = np.array([0, 1, 1, 1])
+        np.testing.assert_allclose(shannon_entropy(np.array([0.25, 0.75])),
+                                   entropy(labels))
+
+    def test_entropy_criterion_handles_string_labels(self):
+        # node_probs works off self.classes, so the probability-based entropy
+        # copes with labels np.bincount could not accept. (predict returns the
+        # class *index* rather than the label itself -- a separate, pre-existing
+        # trait of this implementation.)
+        y = np.where(self.y == 0, 'cat', 'dog')
+        m = DecisionTree(criterion='entropy')
+        m.fit(Dataset(self.X, y))
+        self.assertIn(m.predict(self.X[0]), (0, 1))
+
+    def test_calc_impurity_actually_uses_the_selected_criterion(self):
+        # Without this, a calc_impurity that ignored self.criterion would still
+        # pass every other test in this class, since gini alone classifies these
+        # blobs perfectly.
+        from si.supervised.dt import gini, shannon_entropy
+
+        labels = np.array([0, 0, 0, 1])
+        expected_probs = np.array([0.75, 0.25])
+
+        for criterion, measure in (('gini', gini), ('entropy', shannon_entropy)):
+            with self.subTest(criterion=criterion):
+                m = DecisionTree(criterion=criterion)
+                m.classes = np.array([0, 1])
+                self.assertAlmostEqual(m.calc_impurity(labels),
+                                       measure(expected_probs))
+        # and the two measures genuinely differ on this node, so the assertions
+        # above cannot both hold by coincidence
+        self.assertNotAlmostEqual(gini(expected_probs),
+                                  shannon_entropy(expected_probs))
+
+
 class TestRandomForest(unittest.TestCase):
     def setUp(self):
         np.random.seed(0)  # RandomForest uses global numpy RNG for bagging

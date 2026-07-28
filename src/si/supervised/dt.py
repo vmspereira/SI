@@ -60,6 +60,31 @@ def gini(probas):
     return 1 - np.sum(probas**2)
 
 
+def shannon_entropy(probas):
+    """Calculates the entropy from a vector of class probabilities.
+
+    Same quantity as `entropy` above, H = -sum_c p_c * log2(p_c), but taken
+    from an already-computed probability vector instead of raw labels. That
+    matters for the tree: it mirrors `gini`'s interface, so the two criteria are
+    interchangeable, and it works for any label type -- `entropy` relies on
+    np.bincount and so needs non-negative integer labels.
+
+    Gini and entropy usually pick very similar splits. Entropy is the
+    information-theoretic measure (expected bits to encode the class) and
+    penalises impurity slightly more sharply; Gini avoids the logarithm and is
+    marginally cheaper.
+    """
+    # Skip classes absent from the node: p = 0 contributes 0 to the sum, but
+    # log2(0) is -inf and 0 * -inf is NaN.
+    probas = np.asarray(probas, dtype=float)
+    nonzero = probas[probas > 0]
+    h = -np.sum(nonzero * np.log2(nonzero))
+    # A pure node gives -0.0 (the negation of an exact zero sum). It compares
+    # equal to 0.0, but adding 0.0 normalises the sign so printed output reads
+    # as 0.0 rather than -0.0.
+    return h + 0.0
+
+
 class Node:
     """Implementation of a simple binary tree for DT classifier.
 
@@ -89,8 +114,12 @@ class Node:
 
 
 class DecisionTree(Model):
+    #: The impurity measures a node can be scored with.
+    CRITERIA = ('gini', 'entropy')
+
     def __init__(
-        self, max_depth: int = 3, min_samples_leaf: int = 1, min_samples_split: int = 2
+        self, max_depth: int = 3, min_samples_leaf: int = 1, min_samples_split: int = 2,
+        criterion: str = 'gini'
     ) -> None:
         """Decision Tree classifier.
 
@@ -103,12 +132,20 @@ class DecisionTree(Model):
             contain for a split to be accepted.
         :param int min_samples_split: Minimum number of samples a node must
             contain to even be considered for splitting.
+        :param str criterion: the impurity measure used to score a candidate
+            split, 'gini' (default) or 'entropy'. Both plug into the same
+            Information Gain formula, so switching only changes how impurity is
+            quantified, not how the tree is built.
         """
 
         super().__init__()
         self.max_depth = max_depth
         self.min_samples_leaf = min_samples_leaf
         self.min_samples_split = min_samples_split
+        if criterion not in self.CRITERIA:
+            raise ValueError(
+                f"Unknown criterion '{criterion}': use one of {self.CRITERIA}.")
+        self.criterion = criterion
         # Decision tree itself
         self.Tree = None
 
@@ -130,23 +167,32 @@ class DecisionTree(Model):
 
     def calc_impurity(self, y):
         """
-        Wrapper for the impurity calculation. Calculates probabilities
-        first and then passses them to the Gini criterion.
+        Wrapper for the impurity calculation. Calculates the class
+        probabilities first and then passes them to the chosen criterion.
 
-        The gini impurity measures the frequency at which any element
-        of the dataset will be mislabelled when it is randomly labeled.
+        Both criteria answer "how mixed are the labels in this node?" and both
+        are 0 for a pure node and maximal when the classes are balanced, so the
+        split search treats them identically -- it always keeps the split with
+        the largest drop in impurity.
 
-        The minimum value of the Gini Index is 0. This happens when the
-        node is pure, this means that all the contained elements in the
-        node are of one unique class. Therefore, this node will not be
-        split again. Thus, the optimum split is chosen by the features
-        with less Gini Index. Moreover, it gets the maximum value when
-        the probability of the two classes are the same.
+        gini
+            The frequency at which any element of the dataset would be
+            mislabelled if it were labelled at random according to the node's
+            class distribution. Maximum is 1 - 1/n_classes (0.5 for two
+            classes).
 
+        entropy
+            The information-theoretic measure: the expected number of bits
+            needed to encode the class of a sample drawn from this node.
+            Maximum is log2(n_classes) (1 bit for two classes), so it grows
+            faster than Gini as a node becomes mixed and penalises impurity
+            slightly more sharply. In practice the two rarely disagree about
+            which split is best.
         """
-        return gini(self.node_probs(y))
-
-    # TODO: Entropy criterion #######################################
+        probas = self.node_probs(y)
+        if self.criterion == 'entropy':
+            return shannon_entropy(probas)
+        return gini(probas)
 
     def calc_best_split(self, X, y):
         """
