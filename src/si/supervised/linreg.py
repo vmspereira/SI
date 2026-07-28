@@ -105,9 +105,16 @@ class LinearRegression(Model):
             n = X.shape[1]
             identity = np.eye(n)
             identity[0, 0] = 0
-            self.theta = np.linalg.inv(X.T @ X + self.lbd * identity) @ X.T @ y
+            self.theta = np.linalg.pinv(X.T @ X + self.lbd * identity) @ X.T @ y
         else:
-            self.theta = np.linalg.inv(X.T @ X) @ X.T @ y
+            # pinv, not inv. With collinear features (a duplicated column, or
+            # more features than samples) X.T @ X is singular and inv raised
+            # "LinAlgError: Singular matrix". The pseudo-inverse returns the
+            # minimum-norm least-squares solution instead, which is the right
+            # answer for a rank-deficient design. It agrees with inv exactly
+            # whenever the matrix IS invertible, so well-posed fits are
+            # unchanged. (LDA already uses pinv for the same reason.)
+            self.theta = np.linalg.pinv(X.T @ X) @ X.T @ y
 
     def train_gd(self, X, y):
         """

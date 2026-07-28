@@ -7,7 +7,7 @@
 """k-nearest neighbors module"""
 # ---------------------------------------------------------------------------
 from .model import Model
-from si.util import l2_distance, accuracy_score
+from si.util import l2_distance, accuracy_score, mse
 import numpy as np
 
 
@@ -28,6 +28,11 @@ class KNN(Model):
 
         """
         super().__init__()
+        if num_neighbors < 1:
+            # k=0 selected an empty neighbour set, and the majority vote then
+            # failed with "ValueError: max() iterable argument is empty".
+            raise ValueError(
+                f"num_neighbors must be at least 1; got {num_neighbors}.")
         self.num_neighbors = num_neighbors
         self.classification = classification
 
@@ -67,6 +72,16 @@ class KNN(Model):
         return prediction
 
     def cost(self, X=None, y=None):
+        """Accuracy for classification, mean squared error for regression.
+
+        The metric used to follow the classification branch unconditionally, so a
+        regressor built with classification=False was scored with accuracy_score
+        -- comparing continuous predictions for exact equality with continuous
+        targets. That is essentially always 0: a KNN regressor predicting
+        0.5, 0.5, 1.5, 2.5 against targets 0, 1, 2, 3 reported cost() == 0.0
+        while performing perfectly reasonably. The metric now follows the mode
+        the model was built in.
+        """
         # Default to the stored training data if no evaluation set is given.
         X = X if X is not None else self.dataset.X
         y = y if y is not None else self.dataset.y
@@ -76,4 +91,7 @@ class KNN(Model):
         # predict, producing one prediction per sample.
         y_pred = np.ma.apply_along_axis(self.predict,
                                         axis=0, arr=X.T)
-        return accuracy_score(y, y_pred)
+        if self.classification:
+            return accuracy_score(y, y_pred)
+        # Regression: lower is better, unlike the accuracy above.
+        return mse(y, y_pred)
