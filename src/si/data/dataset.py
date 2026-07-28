@@ -29,6 +29,27 @@ class Dataset:
         """
         if X is None:
             raise Exception("Trying to instantiate a Dataset without any data")
+        X = np.asarray(X)
+        # A 1-D X used to fail on X.shape[1] with "IndexError: tuple index out of
+        # range", which does not hint at the shape being the problem.
+        if X.ndim != 2:
+            raise ValueError(
+                f"X must be 2-D (n_samples, n_features); got {X.ndim} "
+                f"dimension(s) with shape {X.shape}. A single feature needs an "
+                "explicit column: X.reshape(-1, 1)."
+            )
+        if y is not None and len(y) != X.shape[0]:
+            raise ValueError(
+                f"X has {X.shape[0]} samples but y has {len(y)}; they must match."
+            )
+        # Feature names must line up with the columns, or the mismatch only
+        # surfaces much later inside toDataframe/summary as an opaque pandas
+        # shape error.
+        if xnames is not None and len(xnames) != X.shape[1]:
+            raise ValueError(
+                f"xnames has {len(xnames)} name(s) but X has {X.shape[1]} "
+                "column(s); they must match."
+            )
         self.X = X
         self.y = y
         # If no feature names are supplied, auto-generate placeholders (one per
@@ -70,6 +91,16 @@ class Dataset:
         :rtype: Dataset
         """
 
+        # A ylabel that is not a column used to fall through to the UNLABELED
+        # branch, so a typo silently produced a dataset with no target and the
+        # target column folded in among the features -- the worst possible
+        # outcome for someone who explicitly asked for a label.
+        if ylabel is not None and ylabel not in df.columns:
+            raise ValueError(
+                f"ylabel '{ylabel}' is not a column of the dataframe. "
+                f"Available columns: {list(df.columns)}."
+            )
+
         if ylabel and ylabel in df.columns:
             X = df.loc[:, df.columns != ylabel].to_numpy()
             y = df.loc[:, ylabel].to_numpy()
@@ -108,23 +139,38 @@ class Dataset:
         :type sep: str, optional
         """
         if self.y is not None:
-            fullds = np.hstack((self.X, self.y.reshape(len(self.y), 1)))
+            fullds = np.hstack((np.asarray(self.X, dtype=object),
+                                np.asarray(self.y, dtype=object).reshape(-1, 1)))
         else:
-            fullds = self.X
-        np.savetxt(filename, fullds, delimiter=sep)
+            fullds = np.asarray(self.X, dtype=object)
+        # '%s' rather than the default '%.18e': hstacking a float X with a string
+        # y gives a text array, and the numeric format specifier then raised
+        # "TypeError: Mismatch between array dtype ('<U32') and format specifier".
+        # '%s' writes both kinds faithfully.
+        np.savetxt(filename, fullds, delimiter=sep, fmt='%s')
 
     def toDataframe(self):
-        """ Converts the dataset into a pandas DataFrame"""
-        import pandas as pd
-        if self.y is not None:
-            fullds = np.hstack((self.X, self.y.reshape(len(self.y), 1)))
-            columns = self._xnames[:] + [self._yname]
-        else:
-            fullds = self.X.copy()
-            columns = self._xnames[:]
-        return pd.DataFrame(fullds, columns=columns)
+        """ Converts the dataset into a pandas DataFrame
 
-    def __repr_html__(self) -> str:
+        The target is attached as its own column rather than hstacked onto X.
+        np.hstack forces one common dtype, so string labels used to upcast the
+        numeric features to strings -- every column came back as text and
+        `summary` then reported NaN for all of them.
+        """
+        import pandas as pd
+        df = pd.DataFrame(self.X, columns=self._xnames[:])
+        if self.y is not None:
+            # assigning a column preserves both dtypes independently
+            df[self._yname] = self.y
+        return df
+
+    def _repr_html_(self) -> str:
+        """Rich display hook for Jupyter.
+
+        Named with SINGLE leading/trailing underscores because that is what
+        IPython looks up. As `__repr_html__` it was never called, so datasets
+        rendered as a plain <object ...> in notebooks.
+        """
         return self.toDataframe().to_html()
 
     def getXy(self):
@@ -133,43 +179,47 @@ class Dataset:
         return self.X, self.y
 
 
-def summary(dataset, format='df'):
+def summary(dataset, output_format='df'):
     """ Returns the statistics of a dataset(mean, std, max, min)
 
     Computes per-column descriptive statistics so students can quickly inspect
     the scale and spread of each feature (and the target) -- handy for spotting
     whether standardization or outlier removal is needed before modelling.
 
+    A non-numeric column (e.g. string labels) reports NaN for all four
+    statistics, since a mean has no meaning there. Only that column is affected:
+    the columns are gathered separately rather than hstacked into one array,
+    because hstack forces a single dtype and a string target used to turn every
+    numeric feature into text -- making the whole table NaN.
+
     :param dataset: A Dataset object
     :type dataset: si.data.Dataset
-    :param format: Output format ('df':DataFrame, 'dict':dictionary ), defaults to 'df'
-    :type format: str, optional
+    :param output_format: Output format ('df':DataFrame, 'dict':dictionary ),
+        defaults to 'df'. (Named `output_format` rather than `format` so it does
+        not shadow the `format` builtin.)
+    :type output_format: str, optional
     """
+    # (name, column) pairs, each column keeping its own dtype
+    columns = [(name, dataset.X[:, i])
+               for i, name in enumerate(dataset._xnames)]
     if dataset.hasLabel():
-        # Glue the target on as an extra column so it is summarized too.
-        # reshape turns y from (n,) into (n, 1) so hstack can append it.
-        fullds = np.hstack((dataset.X, dataset.y.reshape(len(dataset.y), 1)))
-        columns = dataset._xnames[:] + [dataset._yname]
-    else:
-        fullds = dataset.X
-        columns = dataset._xnames[:]
+        # Include the target so it is summarized too.
+        columns.append((dataset._yname, np.asarray(dataset.y)))
+
     stats = {}
     # Walk every column and record its mean, variance, min and max.
-    for i in range(fullds.shape[1]):
+    for name, column in columns:
         try:
-            _means = np.mean(fullds[:, i], axis=0)
-            _vars = np.var(fullds[:, i], axis=0)
-            _maxs = np.max(fullds[:, i], axis=0)
-            _mins = np.min(fullds[:, i], axis=0)
-        except Exception:
-            _means = _vars = _maxs = _mins = np.nan
-        stat = {'mean': _means,
-                'var': _vars,
-                'min': _mins,
-                'max': _maxs
-                }
-        stats[columns[i]] = stat
-    if format == 'df':
+            stat = {'mean': np.mean(column),
+                    'var': np.var(column),
+                    'min': np.min(column),
+                    'max': np.max(column)}
+        except (TypeError, ValueError):
+            # non-numeric column: these statistics do not apply
+            stat = {'mean': np.nan, 'var': np.nan,
+                    'min': np.nan, 'max': np.nan}
+        stats[name] = stat
+    if output_format == 'df':
         import pandas as pd
         df = pd.DataFrame(stats)
         return df
