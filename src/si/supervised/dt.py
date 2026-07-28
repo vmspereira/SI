@@ -369,9 +369,16 @@ class DecisionTree(Model):
     def predict(self, x):
         assert self.is_fitted, "Model must be fit before predicting"
         # The predicted class is the most probable one at the reached leaf.
-        # argmax over the class-distribution vector returns the class index.
-        pred = np.argmax(self.predict_sample(x, self.Tree))
-        return pred
+        # argmax over the class-distribution vector gives a POSITION in that
+        # vector, which is an index into self.classes -- not a label. Indexing
+        # self.classes converts it back into the actual label.
+        #
+        # Returning the raw index (as this used to) only looks right when the
+        # labels happen to be 0..k-1. With labels {1, 2} or {'cat', 'dog'} the
+        # index never equals the label, so cost() compared indices against
+        # labels and reported 0% accuracy on perfectly separable data.
+        position = np.argmax(self.predict_sample(x, self.Tree))
+        return self.classes[position]
 
     def cost(self, X=None, y=None):
         X = X if X is not None else self.dataset.X
