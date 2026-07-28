@@ -85,13 +85,19 @@ def calc_pad_dims_2D(X_shape, out_dim, kernel_shape, stride):
     if out_rows1 == out_rows - 1:
         pr1, pr2 = pr, pr + 1
     elif out_rows1 != out_rows:
-        raise AssertionError
+        raise AssertionError(
+            "Cannot reach {} output rows from {} input rows with kernel {} and "
+            "stride {}: the closest achievable is {}.".format(
+                out_rows, in_rows, fr, stride, out_rows1))
 
     pc1, pc2 = pc, pc
     if out_cols1 == out_cols - 1:
         pc1, pc2 = pc, pc + 1
     elif out_cols1 != out_cols:
-        raise AssertionError
+        raise AssertionError(
+            "Cannot reach {} output cols from {} input cols with kernel {} and "
+            "stride {}: the closest achievable is {}.".format(
+                out_cols, in_cols, fc, stride, out_cols1))
 
     if any(np.array([pr1, pr2, pc1, pc2]) < 0):
         raise ValueError(
@@ -114,29 +120,40 @@ def pad2D(X, pad, kernel_shape=None, stride=None):
         4-tuple padding (handy for the backward pass / col2im).
     """
     p = pad
+
+    # Resolve "same" to a concrete 4-tuple FIRST, so that everything below has
+    # a single, uniform padding path. (Previously this was handled last, which
+    # meant that reaching it without a kernel/stride left X_pad unassigned and
+    # raised UnboundLocalError instead of saying what was missing.)
+    if p == "same":
+        if kernel_shape is None or stride is None:
+            raise ValueError(
+                "pad='same' needs `kernel_shape` and `stride` to work out how "
+                "much padding preserves the input size; got "
+                "kernel_shape={!r}, stride={!r}.".format(kernel_shape, stride)
+            )
+        p = calc_pad_dims_2D(X.shape, X.shape[1:3], kernel_shape, stride)
+
     if isinstance(p, int):
         p = (p, p, p, p)
 
-    if isinstance(p, tuple):
-        if len(p) == 2:
-            p = (p[0], p[0], p[1], p[1])
-
-        # np.pad only the H and W axes (axes 1 and 2); leave examples and
-        # channels untouched. X: (n_ex, in_rows, in_cols, in_ch)
-        # -> X_pad: (n_ex, in_rows + p[0] + p[1], in_cols + p[2] + p[3], in_ch)
-        X_pad = np.pad(
-            X,
-            pad_width=((0, 0), (p[0], p[1]), (p[2], p[3]), (0, 0)),
-            mode="constant",
-            constant_values=0,
+    if not isinstance(p, tuple) or len(p) not in (2, 4):
+        raise ValueError(
+            "`pad` must be an int, a 2- or 4-tuple, or 'same'; got {!r}.".format(pad)
         )
 
-    # compute the correct padding dims for a 'same' convolution
-    # (delegate to calc_pad_dims_2D, then recurse with the concrete 4-tuple)
-    if p == "same" and kernel_shape and stride is not None:
-        p = calc_pad_dims_2D(
-            X.shape, X.shape[1:3], kernel_shape, stride)
-        X_pad, p = pad2D(X, p)
+    if len(p) == 2:
+        p = (p[0], p[0], p[1], p[1])
+
+    # np.pad only the H and W axes (axes 1 and 2); leave examples and
+    # channels untouched. X: (n_ex, in_rows, in_cols, in_ch)
+    # -> X_pad: (n_ex, in_rows + p[0] + p[1], in_cols + p[2] + p[3], in_ch)
+    X_pad = np.pad(
+        X,
+        pad_width=((0, 0), (p[0], p[1]), (p[2], p[3]), (0, 0)),
+        mode="constant",
+        constant_values=0,
+    )
     return X_pad, p
 
 
