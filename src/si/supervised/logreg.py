@@ -61,6 +61,21 @@ class LogisticRegression(Model):
 
     def fit(self, dataset):
         X, y = dataset.getXy()
+
+        # The log-loss -[y log h + (1-y) log(1-h)] is only defined for targets in
+        # {0, 1}: those two terms are meant to select one branch each. Feed it
+        # y=2 and both terms stay active with the wrong signs, and the cost comes
+        # back as nan -- silently, with no error. String labels fail slightly
+        # louder but no more clearly, as a UFuncTypeError from the arithmetic.
+        # Check the encoding here so the message names the actual problem.
+        labels = set(np.unique(y).tolist()) if y.dtype.kind not in 'US' else set(np.unique(y))
+        if not labels <= {0, 1, 0.0, 1.0}:
+            raise ValueError(
+                "LogisticRegression requires labels in {0, 1} (its log-loss and "
+                f"0.5-threshold decision rule assume them); got {sorted(labels, key=str)}. "
+                "Encode the positive class as 1 and the negative as 0."
+            )
+
         # Prepend a column of 1s so theta[0] acts as the bias/intercept term.
         X = add_intercept(X)
 
