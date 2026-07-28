@@ -154,14 +154,14 @@ class MaxPooling2D(Pooling2D):
 class AveragePooling2D(Pooling2D):
     
     def pool(self, X_col):
+        # average pooling has no argmax to cache, return None as the index
         output = np.mean(X_col, axis=0)
-        return output
+        return output, None
 
     def dpool(self, dX_col, dout_col, pool_cache):
-        
-        accum_grad_col = np.zeros((np.prod(self.pool_shape), dout_col.size))
-        accum_grad_col[:, range(dout_col.size)] = 1. / accum_grad_col.shape[0] * dout_col
-        return accum_grad_col
+        # distribute each output gradient evenly across its pooling window
+        dX_col[:, range(dout_col.size)] = (1. / dX_col.shape[0]) * dout_col
+        return dX_col
 
     def __str__(self):
         return "AveragePooling2D"
@@ -178,8 +178,10 @@ class ConstantPadding2D(Layer):
         self.padding_value = padding_value
 
     def forward(self, input, training=True):
+        self.input_shape = input.shape
+        # input is NHWC: pad the spatial dimensions (axes 1 and 2)
         output = np.pad(input,
-            pad_width=((0,0), (0,0), self.padding[0], self.padding[1]),
+            pad_width=((0,0), self.padding[0], self.padding[1], (0,0)),
             mode="constant",
             constant_values=self.padding_value)
         return output
@@ -187,11 +189,11 @@ class ConstantPadding2D(Layer):
     def backward(self, output_error):
         pad_top, pad_left = self.padding[0][0], self.padding[1][0]
         height, width = self.input_shape[1], self.input_shape[2]
-        output_error = output_error[:, :, pad_top:pad_top+height, pad_left:pad_left+width]
+        output_error = output_error[:, pad_top:pad_top+height, pad_left:pad_left+width, :]
         return output_error
 
     def initialize(self, optimizer):
         pass
 
     def __str__(self):
-        return "Padding2D"
+        return "ConstantPadding2D"
