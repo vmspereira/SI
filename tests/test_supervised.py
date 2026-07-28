@@ -125,6 +125,14 @@ class TestDecisionTree(unittest.TestCase):
         with self.assertRaises(AssertionError):
             DecisionTree().predict(self.X[0])
 
+    def test_handles_degenerate_split(self):
+        # identical feature rows -> no valid split exists; must not crash
+        X = np.ones((6, 3))
+        y = np.array([0, 0, 0, 1, 1, 1])
+        m = DecisionTree(max_depth=3)
+        m.fit(Dataset(X, y))
+        self.assertIn(m.predict(X[0]), (0, 1))
+
 
 class TestRandomForest(unittest.TestCase):
     def setUp(self):
@@ -139,6 +147,11 @@ class TestRandomForest(unittest.TestCase):
         preds = m.predict(self.X)
         self.assertEqual(len(preds), len(self.y))
         self.assertGreater(accuracy(self.y, preds), 0.9)
+
+    def test_cost_reports_accuracy(self):
+        m = RandomForest(n_estimators=10, max_depth=3)
+        m.fit(self.ds)
+        self.assertGreater(m.cost(), 0.9)
 
 
 class TestNaiveBayes(unittest.TestCase):
@@ -184,9 +197,8 @@ class TestLDA(unittest.TestCase):
         proj = m.transform(self.ds)
         self.assertEqual(proj.shape, (self.X.shape[0],))
         preds = m.predict(self.X)
-        acc = accuracy(self.y, preds)
-        # the sign of the discriminant direction is arbitrary, so accept either
-        self.assertGreater(max(acc, 1 - acc), 0.9)
+        # with a proper midpoint threshold the label orientation is fixed
+        self.assertGreater(accuracy(self.y, preds), 0.9)
 
 
 @unittest.skipUnless(

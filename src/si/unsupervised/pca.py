@@ -72,11 +72,15 @@ class PCA:
         self.X_center = self.scale(dataset)
         if self.svd:
             # uses SVD
-            # SVD factorizes a matric into a product of 3 other matrices:
-            # A = U S V*, where U and V are ortogonal and S is diagonal.
-            # U is a matrix of eigen vectores, while the diagonal of S are
-            # eigen values.
-            self.e_vecs, self.e_vals, vt = np.linalg.svd(self.X_center.T)
+            # SVD factorizes a matrix into a product of 3 other matrices:
+            # A = U S V*, where U and V are orthogonal and S is diagonal.
+            # U holds the eigen vectors; the diagonal of S holds the singular
+            # values. The variance along each component is proportional to the
+            # SQUARE of the singular value, so square them to obtain quantities
+            # comparable to the covariance-matrix eigenvalues (this keeps the
+            # ordering identical and makes variance_explained correct).
+            self.e_vecs, singular_values, vt = np.linalg.svd(self.X_center.T)
+            self.e_vals = singular_values ** 2
         else:
             # uses GEEV right eigen vector on the covariance matrix
             cov_matrix = np.cov(self.X_center.T)

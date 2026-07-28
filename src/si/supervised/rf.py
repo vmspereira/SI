@@ -95,5 +95,6 @@ class RandomForest(Model):
         X = X if X is not None else self.dataset.X
         y = y if y is not None else self.dataset.y
 
-        y_pred = np.ma.apply_along_axis(self.predict, axis=0, arr=X.T)
+        # predict() already takes the full 2D feature matrix
+        y_pred = self.predict(X)
         return accuracy_score(y, y_pred)

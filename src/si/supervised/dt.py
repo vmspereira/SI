@@ -157,7 +157,10 @@ class DecisionTree(Model):
         splitCol, thresh, x_left, y_left, x_right, y_right = self.calc_best_split(X, y)
 
         if splitCol is None:
+            # no valid split was found (e.g. all rows identical): stop here
+            # before dereferencing the (None) child splits below
             node.is_terminal = True
+            return
 
         if (
             x_left.shape[0] < self.min_samples_leaf
