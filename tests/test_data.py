@@ -244,7 +244,25 @@ class TestDatasetValidation(unittest.TestCase):
         # Used to raise "IndexError: tuple index out of range" from X.shape[1].
         with self.assertRaises(ValueError) as ctx:
             Dataset(np.array([1., 2., 3.]))
-        self.assertIn('2-D', str(ctx.exception))
+        self.assertIn('at least 2 dimensions', str(ctx.exception))
+
+    def test_higher_rank_x_is_accepted(self):
+        # The library itself uses more than two dimensions: the RNN takes a batch
+        # of SEQUENCES (n, timesteps, features) and Conv2D a batch of IMAGES in
+        # NHWC (n, rows, cols, channels). Demanding exactly 2-D broke both --
+        # scripts/eval6.ipynb builds a (3000, 10, 20) sequence dataset and stopped
+        # running. Only 1-D is rejected.
+        for shape in [(4, 10, 20), (5, 8, 8, 3)]:
+            with self.subTest(shape=shape):
+                ds = Dataset(np.zeros(shape), np.zeros(shape[0]))
+                self.assertEqual(len(ds), shape[0])
+                self.assertEqual(ds.X.shape, shape)
+
+    def test_higher_rank_x_with_a_matching_higher_rank_y(self):
+        # eval6's sequence-to-sequence setup: y has the same shape as X.
+        X = np.zeros((6, 10, 20))
+        ds = Dataset(X, np.zeros((6, 10, 20)))
+        self.assertEqual(len(ds), 6)
 
     def test_xnames_length_must_match_the_columns(self):
         # Constructing succeeded and the mismatch only surfaced much later, as an

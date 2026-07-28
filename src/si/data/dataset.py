@@ -32,11 +32,18 @@ class Dataset:
         X = np.asarray(X)
         # A 1-D X used to fail on X.shape[1] with "IndexError: tuple index out of
         # range", which does not hint at the shape being the problem.
-        if X.ndim != 2:
+        #
+        # Only 1-D (and 0-D) is rejected. Higher-rank X is legitimate and used by
+        # the library itself: the RNN takes a batch of SEQUENCES,
+        # (n_samples, timesteps, features), and Conv2D takes a batch of IMAGES in
+        # NHWC, (n_samples, rows, cols, channels). An earlier version of this
+        # check demanded exactly 2-D and broke both -- scripts/eval6.ipynb, which
+        # builds a (3000, 10, 20) sequence dataset, stopped running.
+        if X.ndim < 2:
             raise ValueError(
-                f"X must be 2-D (n_samples, n_features); got {X.ndim} "
-                f"dimension(s) with shape {X.shape}. A single feature needs an "
-                "explicit column: X.reshape(-1, 1)."
+                f"X must have at least 2 dimensions, the first being the samples;"
+                f" got {X.ndim} dimension(s) with shape {X.shape}. A single "
+                "feature needs an explicit column: X.reshape(-1, 1)."
             )
         if y is not None and len(y) != X.shape[0]:
             raise ValueError(
