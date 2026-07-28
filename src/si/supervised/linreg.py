@@ -7,7 +7,7 @@
 """Linear Regression module"""
 # ---------------------------------------------------------------------------
 from .model import Model
-from si.util import mse, add_intersect
+from si.util import mse, add_intercept
 import numpy as np
 
 
@@ -32,7 +32,7 @@ class LinearRegression(Model):
 
     def fit(self, dataset):
         X, y = dataset.getXy()
-        X = add_intersect(X)
+        X = add_intercept(X)
         self.X = X
         self.y = y
         # Closed form or GD
@@ -41,7 +41,7 @@ class LinearRegression(Model):
 
     def train_closed(self, X, y):
         """ Uses closed form linear algebra to fit the model. 
-            Prefered to GD when some assumptions are met.
+            Preferred to GD when some assumptions are met.
             
             theta = inv(XT*X)*XT*y
             -----------------------------------------------------------------
@@ -50,7 +50,7 @@ class LinearRegression(Model):
 
             We can write a linear regression equation in the form
             
-                Y = X W (see the add_intersect method)
+                Y = X W (see the add_intercept method)
             
             We want the predict values XW to be as close as possible to the
             real values Y, that is, we want to find W values that minimize the 
@@ -88,14 +88,14 @@ class LinearRegression(Model):
                     |       ...
                     | 0 0 0 ... 1 |
         
-            in the derivative resulting from adding the L2 regulation term.
+            in the derivative resulting from adding the L2 regularization term.
             Note that the matrix is not an identity matrix as the first entry is 0.
-            The regulatization is not applied to the intersect (bias) term. 
-            You may, as exercice, derive the closed form.
+            The regularization is not applied to the intercept (bias) term.
+            You may, as an exercise, derive the closed form.
             
-            The closed form computation of weight can not be applyied in certain cases, such as,
-            when the det(XT X) is zero or when the number of data points is not large enought. 
-            Indeed, it can be demonstrated that when P >> N (The Curse of dimentionality), the
+            The closed form computation of weight can not be applied in certain cases, such as,
+            when the det(XT X) is zero or when the number of data points is not large enough.
+            Indeed, it can be demonstrated that when P >> N (The Curse of dimensionality), the
             
                  inv(XT X) ~ 1/det(XT X) -> inf
                  
@@ -115,7 +115,7 @@ class LinearRegression(Model):
         The error between the predictions (XW) and the real values is
             E = XW-Y
         
-        The cost funtion J is the Mean Square Error (MSE).
+        The cost function J is the Mean Square Error (MSE).
         whose gradient (impact of the weights in the error) is 
         
             dJ/dW = 1/m (X W - Y) X   
@@ -166,7 +166,7 @@ class LinearRegression(Model):
     def cost(self, X=None, y=None, theta=None):
         """ Uses MSE as cost function J"""
         # uses the trained dataset and weights if not provided.
-        X = add_intersect(X) if X is not None else self.X
+        X = add_intercept(X) if X is not None else self.X
         y = y if y is not None else self.y
         theta = theta if theta is not None else self.theta
         

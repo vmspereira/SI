@@ -61,7 +61,13 @@ class NN(Model):
         self.is_fitted = False
 
     def add(self, layer):
-        """Adds a layer to the network"""
+        """Adds a layer to the network.
+
+        Layers are stored in order; this order defines the forward pass
+        (first added = first applied). initialize() hands the layer the
+        optimizer so it can allocate weights and per-parameter optimizer
+        state up front.
+        """
         # TODO: add input size from previous layer output size
         layer.initialize(self.optimizer)
         self.layers.append(layer)
@@ -99,19 +105,38 @@ class NN(Model):
         Returns:
             np.array: the output
         """
+        # Chain the layers: the output of one layer becomes the input of
+        # the next. After the loop, output_batch holds the network's final
+        # prediction. The `training` flag is threaded through so layers
+        # like Dropout / BatchNormalization can switch behaviour between
+        # training and inference.
         output_batch = input
         for layer in self.layers:
                     output_batch = layer.forward(output_batch,training)
         return output_batch
         
     def fit(self, dataset, **kwargs):
-        
+        """Train the network with mini-batch gradient descent.
+
+        The training loop has the classic structure repeated for every
+        mini-batch of every epoch:
+            1. forward    : run the batch through all layers -> predictions
+            2. loss        : compare predictions to targets
+            3. backward    : propagate the loss gradient back through the
+                             layers (each layer also updates its own params
+                             via its optimizer)
+            4. (repeat for the next batch)
+        One "epoch" is one full sweep over the dataset; splitting into
+        mini-batches makes each update cheaper and adds useful gradient
+        noise (the stochastic in SGD).
+        """
+
         epochs = kwargs.get('epochs', self.epochs)
         batch_size = kwargs.get('batch_size', self.batch_size)
-        
+
         self.dataset = dataset
         X, y = dataset.getXy()
-        
+
         self.history = dict()
         for epoch in range(1, epochs + 1):
             # lists to save the batch predicted and real values
@@ -122,12 +147,21 @@ class NN(Model):
 
             for batch in minibatch(X, y, batch_size):
                 output_batch, y_batch = batch
-                
+
+                # 1) Forward pass (training=True by default), turning the
+                #    batch of inputs into a batch of predictions.
                 output_batch = self.forward(output_batch)
                 # backward propagation (propagates errors)
                 # Computes the derivatives to see how much each
                 # parameter contributed to the total error and adjusts
                 # the parameter acording to a defined learning rate
+                #
+                # 2) Seed the backward pass with dE/dY of the loss
+                #    (loss_prime = derivative of the loss w.r.t. the output).
+                # 3) Walk the layers in REVERSE: each backward() consumes the
+                #    error from the layer after it, updates its own
+                #    parameters, and returns the error to hand to the layer
+                #    before it. This is the chain rule applied layer by layer.
                 error = self.loss_prime(y_batch, output_batch)
                 for layer in reversed(self.layers):
                     error = layer.backward(error)
@@ -164,6 +198,9 @@ class NN(Model):
 
     def predict(self, input_data):
         assert self.is_fitted, "Model must be fit before predicting"
+        # training=False so layers behave in inference mode: Dropout passes
+        # through unchanged, BatchNormalization uses its frozen running
+        # statistics. No backward pass / parameter update happens here.
         output = self.forward(input_data, training=False)
         return output
 
