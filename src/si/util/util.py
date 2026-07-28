@@ -13,7 +13,6 @@ ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXZ'
 
 
 def label_gen(n: int):
-    import itertools
     """
     Generates a list of n distinct labels similar to the ones
     on spreadsheets.
@@ -21,7 +20,13 @@ def label_gen(n: int):
 
     :param (int) n: Number of labels
     :returns: A list of labels
+
+    Note: the import used to sit above this text, which silently demoted the
+          docstring to a no-op string expression -- `label_gen.__doc__` was
+          None and `help(label_gen)` showed nothing.
     """
+    import itertools
+
     def _iter_all_strings():
         size = 1
         while True:
@@ -146,15 +151,27 @@ def sigmoid(z):
 
 
 def to_categorical(y, num_classes=None, dtype='float32'):
-    """_summary_
+    """One-hot encodes a vector of integer class labels.
+
+    Each label becomes a row of zeros with a single 1 in the column of its
+    class, so label 2 out of 4 classes becomes [0, 0, 1, 0]. This is the target
+    format a softmax output layer expects: the network produces a probability
+    per class, and the one-hot row says which of those should be 1.
+
+        y = [0, 2, 1]  ->  [[1, 0, 0],
+                            [0, 0, 1],
+                            [0, 1, 0]]
 
     Args:
-        y (_type_): _description_
-        num_classes (_type_, optional): _description_. Defaults to None.
-        dtype (str, optional): _description_. Defaults to 'float32'.
+        y: array-like of integer labels, shape (n_samples,) or
+            (n_samples, 1). A trailing axis of size 1 is squeezed out.
+        num_classes (int, optional): number of columns to produce. Defaults to
+            max(y) + 1, which is only correct when every class appears in `y` --
+            pass it explicitly when encoding a subset such as a single batch.
+        dtype (str, optional): dtype of the result. Defaults to 'float32'.
 
     Returns:
-        _type_: _description_
+        numpy.array of shape (n_samples, num_classes).
     """
     y = np.array(y, dtype='int')
     input_shape = y.shape
