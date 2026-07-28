@@ -69,9 +69,16 @@ class NaiveBayes(Model):
         self.dataset = dataset
         n = X.shape[0]
 
+        # The labels seen during training, in sorted order. Every per-class
+        # array below is aligned with this list, so a position in `prior` / `lk`
+        # (and hence an argmax over the posteriors) maps back to a label through
+        # self.classes. Stored rather than recomputed so predict can do that
+        # mapping.
+        self.classes = np.unique(y)
+
         # one (n_samples_c, n_features) array per class; kept as a list because
         # classes may have different sample counts (a ragged np.array is invalid)
-        X_by_class = [X[y == c] for c in np.unique(y)]
+        X_by_class = [X[y == c] for c in self.classes]
         # Prior P(Y=c) = (#samples in class c) / (total #samples).
         self.prior = np.array([len(X_class) / n for X_class in X_by_class])
 
@@ -120,7 +127,14 @@ class NaiveBayes(Model):
     def predict(self, x):
         assert self.is_fitted, 'Model must be fit before predicting'
         # Predicted class = the one with the highest posterior probability (MAP).
-        return self.predict_proba(x).argmax(axis=1)
+        #
+        # argmax gives a COLUMN POSITION in the posterior matrix, which is an
+        # index into self.classes -- not a label. Returning it directly (as this
+        # used to) is only correct when the labels are 0..k-1; with labels
+        # {1, 2} or {'a', 'b'} cost() compared positions against labels and
+        # reported 0% accuracy. Indexing self.classes maps it back.
+        positions = self.predict_proba(x).argmax(axis=1)
+        return self.classes[positions]
 
     def cost(self, X=None, y=None):
         assert self.is_fitted, 'Model must be fit before predicting'

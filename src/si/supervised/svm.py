@@ -102,6 +102,20 @@ class SVM(Model):
         X, y = dataset.getXy()
         n_samples, n_features = np.shape(X)
 
+        # The dual formulation below, and the sign() in predict, are defined for
+        # labels in {-1, +1}: the margin term y * (w.x + b) only means anything
+        # with signed labels. Given {0, 1} the solver still converges and
+        # predict still returns +/-1, so nothing raises -- the model just scores
+        # about 0.5 and looks merely bad rather than mis-specified. Check up
+        # front instead of failing quietly.
+        labels = set(np.unique(y).tolist())
+        if not labels <= {-1, 1}:
+            raise ValueError(
+                "SVM requires labels in {-1, +1} (the dual and the sign() "
+                f"decision rule assume signed labels); got {sorted(labels)}. "
+                "Remap with e.g. np.where(y == 0, -1, 1)."
+            )
+
         # Set gamma to 1/n_features by default
         if not self.gamma:
             self.gamma = 1 / n_features
@@ -176,7 +190,13 @@ class SVM(Model):
             self.intercept -= self.lagr_multipliers[i] * self.support_vector_labels[
                 i] * self.kernel(self.support_vectors[i], self.support_vectors[0])
 
+        # fit() never set this, so is_fitted stayed False for the model's whole
+        # life -- the same omission LDA had. Nothing noticed because predict did
+        # not check it either.
+        self.is_fitted = True
+
     def predict(self, X):
+        assert self.is_fitted, 'Model must be fit before predicting'
         y_pred = []
         # Iterate through list of samples and make predictions
         for sample in X:
