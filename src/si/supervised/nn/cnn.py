@@ -201,7 +201,16 @@ class Pooling2D(Layer):
         w_out = (w - self.size) / self.stride + 1
 
         if not w_out.is_integer() or not h_out.is_integer():
-            raise Exception("Invalid output dimension!")
+            # Previously a bare Exception reading only "Invalid output
+            # dimension!", which left the caller to work out which of the input
+            # size, window size or stride was at fault.
+            raise ValueError(
+                f"A {self.size}x{self.size} window with stride {self.stride} "
+                f"does not tile a {h}x{w} input: the output size would be "
+                f"{h_out}x{w_out}, which is not a whole number of windows. "
+                "Adjust the window size or the stride so that "
+                "(input - size) / stride is an integer."
+            )
 
         h_out, w_out = int(h_out), int(w_out)
 

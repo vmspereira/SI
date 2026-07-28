@@ -138,9 +138,24 @@ class Dense(Layer):
         """Sets the weights and bias of the
         layer.
 
-        :params weights: A numpy array of weight values
-        :params bias: A numpy array of bias values
+        :params weights: A numpy array of shape (input_size, output_size)
+        :params bias: A numpy array of shape (1, output_size)
         """
+        # Shapes were previously accepted unchecked, so a mismatch only surfaced
+        # much later as a broadcasting ValueError from inside forward -- far from
+        # the assignment that caused it.
+        expected_w = (self.input_size, self.output_size)
+        expected_b = (1, self.output_size)
+        if np.shape(weights) != expected_w:
+            raise ValueError(
+                f"weights must have shape {expected_w} for a "
+                f"Dense({self.input_size}, {self.output_size}); "
+                f"got {np.shape(weights)}."
+            )
+        if np.shape(bias) != expected_b:
+            raise ValueError(
+                f"bias must have shape {expected_b}; got {np.shape(bias)}."
+            )
         self.weights = weights
         self.bias = bias
 
@@ -305,14 +320,26 @@ class BatchNormalization(Layer):
            https://doi.org/10.1007/978-3-030-58610-2_14
     """
 
-    def __init__(self, input_shape, momentum=0.99):
+    def __init__(self, input_shape, momentum=0.99, eps=1e-5):
         # momentum: weight given to the historical running statistics when
         #   blending in the current batch's mean/var (closer to 1 = slower,
         #   smoother updates).
         # eps: small constant added to the variance before taking the
         #   square root, to avoid division by zero / instability.
+        #
+        # eps was hardcoded at 0.01, a thousand times the conventional 1e-5, and
+        # it sits INSIDE the square root: the scale applied is
+        # 1/sqrt(var + eps). Once eps is comparable to a feature's variance it
+        # dominates, and the layer stops normalising the very features that most
+        # need it:
+        #     variance 1.0    ->  0.5% under-scaled
+        #     variance 0.01   -> 29.3% under-scaled
+        #     variance 0.0001 -> 90.0% under-scaled
+        # Now 1e-5 by default, and configurable, so it does what its own
+        # docstring promises. Raise it if a batch is so small that the variance
+        # estimate itself is unstable.
         self.momentum = momentum
-        self.eps = 0.01
+        self.eps = eps
         # Running (exponential moving average) statistics, accumulated over
         # training batches and used at inference time. None until first use.
         self.running_mean = None
@@ -331,6 +358,21 @@ class BatchNormalization(Layer):
         self.beta_opt = copy(optimizer)
 
     def forward(self, input, training=True):
+
+        # Inference requires statistics learned during TRAINING. Initialising
+        # them here regardless meant that a forward(training=False) on an
+        # untrained layer seeded the running mean/var from the inference batch
+        # and then normalised that batch by its own statistics -- precisely the
+        # leakage the running estimates exist to prevent, and silently: two test
+        # samples came back as -0.995 and +0.995 as if they had been centred on
+        # their own mean.
+        if not training and self.running_mean is None:
+            raise RuntimeError(
+                "BatchNormalization has no running statistics yet: run at least "
+                "one forward pass with training=True before evaluating with "
+                "training=False. Otherwise inference would normalise each batch "
+                "by its own mean and variance."
+            )
 
         # Initialize running mean and variance if first run
         if self.running_mean is None:
