@@ -14,6 +14,10 @@ import numpy as np
 
 class NaiveBayes(Model):
 
+    # `predict` takes a 2-D X (n_samples, n_features) and returns one
+    # prediction per row -- see the note on Model.predicts_batch.
+    predicts_batch = True
+
     def __init__(self, alpha=1.0):
         """
         Naive Bayesian for categorical data.
