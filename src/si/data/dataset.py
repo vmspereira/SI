@@ -7,7 +7,7 @@
 """Dataset module"""
 # ---------------------------------------------------------------------------
 import numpy as np
-from ..util.util import label_gen
+from ..util.helpers import label_gen
 
 
 class Dataset:

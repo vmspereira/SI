@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # ----------------------------------------------------------------------------
-# Tests for the NN container (si.supervised.nn.nn) and the RNN layer.
+# Tests for the NN container (si.supervised.nn.network) and the RNN layer.
 #
 # test_layers.py checks the layers in isolation; this file checks that they
 # compose -- that a stack of layers actually trains, and that the recurrent
@@ -15,7 +15,7 @@ import warnings
 import numpy as np
 
 from si.data import Dataset
-from si.supervised.nn.nn import NN
+from si.supervised.nn import NN
 from si.supervised.nn.layers import Dense
 from si.supervised.nn.activation import Tanh, Sigmoid
 from si.supervised.nn.rnn import RNN

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # ----------------------------------------------------------------------------
-# Tests for the helpers in si.util.util.
+# Tests for the helpers in si.util.helpers.
 #
 # Small functions, but several are load-bearing: add_intercept is what makes the
 # bias term work in the linear models, minibatch drives the neural-network
@@ -12,7 +12,7 @@ import unittest
 import numpy as np
 
 from si.data import Dataset
-from si.util.util import (
+from si.util.helpers import (
     label_gen,
     l1_distance,
     l2_distance,
