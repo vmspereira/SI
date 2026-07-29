@@ -156,3 +156,10 @@ class RNN(Layer):
 
         # Hand the input-error sequence back to the previous layer.
         return accum_grad_next
+
+    def __str__(self):
+        # Every other layer defines this; without it NN.__str__ printed a raw
+        # object repr for the RNN, e.g. "<si.supervised.nn.rnn.RNN object at
+        # 0x110e9a7e0>", which tells the reader nothing about the network.
+        shape = f", input_shape={self.input_shape}" if self.input_shape else ""
+        return f"RNN({self.n_units} units, bptt_trunc={self.bptt_trunc}{shape})"

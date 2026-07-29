@@ -273,6 +273,23 @@ class TestRNNLayer(unittest.TestCase):
         for old, new in zip(before, (self.layer.U, self.layer.V, self.layer.W)):
             self.assertFalse(np.allclose(old, new))
 
+    def test_str_describes_the_layer(self):
+        # Every other layer defines __str__; without it NN.__str__ printed a raw
+        # object repr for the RNN ("<si.supervised.nn.rnn.RNN object at 0x...>"),
+        # which told the reader nothing about the network. eval6.ipynb showed
+        # exactly that.
+        layer = RNN(10, bptt_trunc=5, input_shape=(10, 20))
+        description = str(layer)
+        self.assertIn('RNN', description)
+        self.assertIn('10', description)
+        self.assertIn('bptt_trunc=5', description)
+        self.assertNotIn('object at', description)
+
+    def test_a_network_containing_an_rnn_prints_cleanly(self):
+        net = NN(verbose=False)
+        net.add(RNN(8, bptt_trunc=4, input_shape=(6, 12)))
+        self.assertNotIn('object at', str(net))
+
     def test_backward_matches_numerical_gradient(self):
         # Finite-difference check on the gradient handed back to the previous
         # layer, dE/dx for E = sum(outputs). This is what caught the original
