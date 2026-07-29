@@ -7,7 +7,7 @@
 """Cross Validation module"""
 # ---------------------------------------------------------------------------
 
-from .util import train_test_split, predict_all
+from .helpers import train_test_split, predict_all
 import numpy as np
 import itertools
 import copy

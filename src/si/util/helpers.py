@@ -4,7 +4,7 @@
 # Created Date: 01-09-2021
 # version ='0.0.1'
 # ---------------------------------------------------------------------------
-"""Utility module"""
+"""General-purpose helpers: distances, splitting, batching, encoding."""
 # ---------------------------------------------------------------------------
 import numpy as np
 

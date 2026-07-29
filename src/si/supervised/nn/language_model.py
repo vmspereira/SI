@@ -21,7 +21,7 @@
 # ---------------------------------------------------------------------------
 import numpy as np
 
-from .nn import NN
+from .network import NN
 from .layers import Dense
 from .optimizers import Adam
 from .transformer import Embedding, PositionalEncoding, TransformerBlock
