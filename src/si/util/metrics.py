@@ -49,9 +49,27 @@ def accuracy_score(y_true, y_pred):
 
 
 def multiclass_accuracy(y_true, y_pred):
-    p = np.argmax(y_pred, axis=1)
-    t = np.argmax(y_true, axis=1)
-    return accuracy_score(t, p)
+    """Accuracy for one-hot / probability outputs, of any rank.
+
+    The winning class is whichever entry of the LAST axis is largest, so this
+    works for a plain classifier scoring (n_samples, n_classes) and for a
+    sequence model scoring (n_samples, seq_len, n_classes) -- every scored
+    position counts as one prediction.
+
+    :param y_true: one-hot targets, class axis last.
+    :param y_pred: predicted scores or probabilities, same shape.
+    :returns: (float) the fraction of positions predicted correctly.
+
+    Note: this used to reduce with axis=1, which is the class axis only for 2-D
+          input. Given a sequence, axis=1 is TIME, so it took the argmax over
+          timesteps and compared the wrong things -- perfect predictions on a
+          (4, 5, 6) target scored 6.0 instead of 1.0. axis=-1 is the class axis
+          whatever the rank, and ravel() means each position contributes one
+          comparison rather than a whole row.
+    """
+    p = np.argmax(y_pred, axis=-1)
+    t = np.argmax(y_true, axis=-1)
+    return accuracy_score(np.ravel(t), np.ravel(p))
 
 
 def mae(y_true, y_pred):

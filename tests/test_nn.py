@@ -273,6 +273,108 @@ class TestRNNLayer(unittest.TestCase):
         for old, new in zip(before, (self.layer.U, self.layer.V, self.layer.W)):
             self.assertFalse(np.allclose(old, new))
 
+    def test_str_describes_the_layer(self):
+        # Every other layer defines __str__; without it NN.__str__ printed a raw
+        # object repr for the RNN ("<si.supervised.nn.rnn.RNN object at 0x...>"),
+        # which told the reader nothing about the network. eval6.ipynb showed
+        # exactly that.
+        layer = RNN(10, bptt_trunc=5, input_shape=(10, 20))
+        description = str(layer)
+        self.assertIn('RNN', description)
+        self.assertIn('10', description)
+        self.assertIn('bptt_trunc=5', description)
+        self.assertNotIn('object at', description)
+
+    def test_a_network_containing_an_rnn_prints_cleanly(self):
+        net = NN(verbose=False)
+        net.add(RNN(8, bptt_trunc=4, input_shape=(6, 12)))
+        self.assertNotIn('object at', str(net))
+
+    def frozen_rnn(self, timesteps, input_dim, units, bptt_trunc, seed=0):
+        """Factory for identically-initialised RNNs, plus the saved matrices."""
+        np.random.seed(seed)
+        reference = RNN(units, bptt_trunc=bptt_trunc,
+                        input_shape=(timesteps, input_dim))
+        reference.initialize(SGD(learning_rate=0.0))
+        saved = {name: getattr(reference, name).copy() for name in ('U', 'V', 'W')}
+
+        def fresh(overrides=None, learning_rate=0.0):
+            layer = RNN(units, bptt_trunc=bptt_trunc,
+                        input_shape=(timesteps, input_dim))
+            layer.initialize(SGD(learning_rate=learning_rate, momentum=0))
+            for name in ('U', 'V', 'W'):
+                setattr(layer, name, saved[name].copy())
+            for name, value in (overrides or {}).items():
+                setattr(layer, name, value.copy())
+            return layer
+
+        return fresh, saved
+
+    def assert_weight_gradient(self, name, timesteps, input_dim=3, units=5,
+                               learning_rate=0.05):
+        """The gradient the layer APPLIED to U, V or W vs central differences.
+
+        Only that the three matrices CHANGE was asserted before, which says
+        nothing about whether the values are right. The weights are shared across
+        every timestep, so each one's gradient is a sum over the whole sequence
+        -- the part of BPTT most likely to be wrong, and the part a shape check
+        cannot see.
+
+        bptt_trunc is set to the full sequence length: truncation makes the
+        gradient a deliberate approximation, so an exact comparison is only
+        meaningful untruncated.
+        """
+        fresh, saved = self.frozen_rnn(timesteps, input_dim, units, timesteps)
+        rng = np.random.RandomState(1)
+        x = rng.randn(2, timesteps, input_dim)
+        error = rng.randn(2, timesteps, input_dim)
+
+        layer = fresh(learning_rate=learning_rate)
+        layer.forward(x)
+        before = getattr(layer, name).copy()
+        layer.backward(error.copy())
+        applied = (before - getattr(layer, name)) / learning_rate
+
+        h = 1e-6
+        numerical = np.zeros_like(saved[name])
+        for idx in np.ndindex(saved[name].shape):
+            up, down = saved[name].copy(), saved[name].copy()
+            up[idx] += h
+            down[idx] -= h
+            numerical[idx] = (
+                (fresh({name: up}).forward(x) * error).sum()
+                - (fresh({name: down}).forward(x) * error).sum()) / (2 * h)
+
+        np.testing.assert_allclose(applied, numerical, atol=1e-5)
+
+    def test_weight_gradients_match_numerical(self):
+        # U (input -> state), V (state -> output) and W (state -> state), each
+        # shared across every step of the sequence.
+        for name in ('U', 'V', 'W'):
+            for timesteps in (2, 4, 6):
+                with self.subTest(parameter=name, timesteps=timesteps):
+                    self.assert_weight_gradient(name, timesteps)
+
+    def test_truncation_makes_the_weight_gradient_approximate(self):
+        # The other side of the same coin: with bptt_trunc shorter than the
+        # sequence, the weight gradient is deliberately inexact. Asserting that
+        # keeps the exact checks above honest -- they would otherwise pass
+        # trivially if truncation were silently ignored.
+        timesteps, input_dim, units = 8, 3, 5
+        rng = np.random.RandomState(1)
+        x = rng.randn(2, timesteps, input_dim)
+        error = rng.randn(2, timesteps, input_dim)
+
+        def applied(bptt_trunc):
+            fresh, _ = self.frozen_rnn(timesteps, input_dim, units, bptt_trunc)
+            layer = fresh(learning_rate=0.05)
+            layer.forward(x)
+            before = layer.W.copy()
+            layer.backward(error.copy())
+            return (before - layer.W) / 0.05
+
+        self.assertFalse(np.allclose(applied(timesteps), applied(1), atol=1e-5))
+
     def test_backward_matches_numerical_gradient(self):
         # Finite-difference check on the gradient handed back to the previous
         # layer, dE/dx for E = sum(outputs). This is what caught the original

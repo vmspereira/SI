@@ -40,6 +40,47 @@ class TestClassificationMetrics(unittest.TestCase):
         self.assertAlmostEqual(accuracy_score(y, y), 1.0)
         self.assertAlmostEqual(accuracy_score(y, 1 - y), 0.0)
 
+    def test_multiclass_accuracy_on_sequences(self):
+        # The class axis is the LAST one, whatever the rank, so a sequence model
+        # scoring (n_samples, seq_len, n_classes) works too and every scored
+        # position counts as one prediction.
+        #
+        # This used to reduce with axis=1, which is the class axis only for 2-D
+        # input. For a sequence axis=1 is TIME, so it took the argmax over
+        # timesteps: perfect predictions on a (4, 5, 6) target scored 6.0
+        # instead of 1.0. eval6.ipynb imported this metric and never called it,
+        # which is why the breakage went unnoticed.
+        rng = np.random.RandomState(0)
+        n_samples, seq_len, n_classes = 4, 5, 6
+        ids = rng.randint(0, n_classes, (n_samples, seq_len))
+        y_true = np.eye(n_classes)[ids]
+
+        self.assertAlmostEqual(multiclass_accuracy(y_true, y_true), 1.0)
+
+        # corrupt the first three positions of every sequence -> 2 of 5 correct
+        corrupted = ids.copy()
+        corrupted[:, :3] = (corrupted[:, :3] + 1) % n_classes
+        self.assertAlmostEqual(
+            multiclass_accuracy(y_true, np.eye(n_classes)[corrupted]), 0.4)
+
+    def test_multiclass_accuracy_never_exceeds_one(self):
+        # The symptom of the old bug: it returned values above 1, which is not a
+        # fraction and so cannot be an accuracy.
+        rng = np.random.RandomState(1)
+        for shape in [(6, 4), (3, 7, 4), (2, 3, 5, 4)]:
+            with self.subTest(shape=shape):
+                y_true = np.eye(4)[rng.randint(0, 4, shape[:-1])]
+                y_pred = rng.rand(*shape)
+                score = multiclass_accuracy(y_true, y_pred)
+                self.assertGreaterEqual(score, 0.0)
+                self.assertLessEqual(score, 1.0)
+
+    def test_multiclass_accuracy_accepts_probabilities(self):
+        # Model outputs are scores, not one-hot; only the argmax matters.
+        y_true = np.eye(3)[[0, 2]]
+        y_pred = np.array([[0.7, 0.2, 0.1], [0.1, 0.2, 0.7]])
+        self.assertAlmostEqual(multiclass_accuracy(y_true, y_pred), 1.0)
+
     def test_multiclass_accuracy_compares_argmax(self):
         # One-hot / probability rows are reduced with argmax before comparing,
         # so the winning class is what matters, not the exact probabilities.
