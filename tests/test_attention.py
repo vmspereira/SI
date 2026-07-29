@@ -17,6 +17,7 @@ import unittest
 import numpy as np
 
 from si.supervised.nn.attention import (
+    MultiHeadAttention,
     SelfAttention,
     softmax,
     softmax_backward,
@@ -236,6 +237,122 @@ class TestCausalMasking(unittest.TestCase):
         out = layer.forward(self.x)
         grad = layer.backward(np.random.randn(*out.shape))
         self.assertTrue(np.isfinite(grad).all())
+
+
+def frozen_multihead(d_model, n_heads, causal=False, seed=0):
+    """Factory for identically-initialised MultiHeadAttention layers."""
+    np.random.seed(seed)
+    reference = MultiHeadAttention(d_model, n_heads, causal=causal)
+    reference.initialize(SGD(learning_rate=0.0))
+    saved = [(p.weights.copy(), p.bias.copy()) for p in
+             (reference.W_q, reference.W_k, reference.W_v, reference.W_o)]
+
+    def fresh():
+        layer = MultiHeadAttention(d_model, n_heads, causal=causal)
+        layer.initialize(SGD(learning_rate=0.0))
+        for projection, (w, b) in zip(
+                (layer.W_q, layer.W_k, layer.W_v, layer.W_o), saved):
+            projection.weights, projection.bias = w.copy(), b.copy()
+        return layer
+
+    return fresh
+
+
+class TestMultiHeadAttention(unittest.TestCase):
+    """Several attentions in parallel over disjoint slices of the features.
+
+    One head can express one relationship per position, because its weights are
+    a single distribution. Splitting d_model into h slices lets h relationships
+    be attended to at once, at the same total cost -- the heads are carved out of
+    the same projections by reshaping, not by adding parameters.
+    """
+
+    def test_output_keeps_the_input_shape(self):
+        layer = MultiHeadAttention(8, 4)
+        layer.initialize(SGD())
+        self.assertEqual(layer.forward(np.random.randn(2, 5, 8)).shape, (2, 5, 8))
+
+    def test_weights_are_per_head_distributions(self):
+        layer = MultiHeadAttention(8, 4)
+        layer.initialize(SGD())
+        layer.forward(np.random.randn(2, 5, 8))
+        # (n_examples, heads, seq_len, seq_len)
+        self.assertEqual(layer.weights.shape, (2, 4, 5, 5))
+        np.testing.assert_allclose(layer.weights.sum(axis=-1), np.ones((2, 4, 5)))
+
+    def test_heads_partition_the_features(self):
+        layer = MultiHeadAttention(12, 3)
+        self.assertEqual(layer.d_k, 4)
+
+    def test_d_model_must_divide_by_n_heads(self):
+        # The heads partition the features, so a remainder has no meaning.
+        with self.assertRaises(ValueError) as ctx:
+            MultiHeadAttention(8, 3)
+        self.assertIn('divide', str(ctx.exception))
+
+    def test_n_heads_must_be_positive(self):
+        with self.assertRaises(ValueError):
+            MultiHeadAttention(8, 0)
+
+    def test_rejects_wrong_rank_and_width(self):
+        layer = MultiHeadAttention(8, 2)
+        layer.initialize(SGD())
+        with self.assertRaises(ValueError):
+            layer.forward(np.random.randn(5, 8))
+        with self.assertRaises(ValueError):
+            layer.forward(np.random.randn(2, 5, 6))
+
+    def test_gradient_matches_numerical(self):
+        for n_heads in (1, 2, 4):
+            for causal in (False, True):
+                with self.subTest(n_heads=n_heads, causal=causal):
+                    fresh = frozen_multihead(8, n_heads, causal=causal)
+                    rng = np.random.RandomState(7)
+                    x = rng.randn(2, 4, 8)
+                    error = rng.randn(2, 4, 8)
+                    layer = fresh()
+                    layer.forward(x)
+                    analytic = layer.backward(error.copy())
+                    h = 1e-6
+                    numerical = np.zeros_like(x)
+                    for idx in np.ndindex(x.shape):
+                        up, down = x.copy(), x.copy()
+                        up[idx] += h
+                        down[idx] -= h
+                        numerical[idx] = (
+                            (fresh().forward(up) * error).sum()
+                            - (fresh().forward(down) * error).sum()) / (2 * h)
+                    np.testing.assert_allclose(analytic, numerical, atol=1e-5)
+
+    def test_causal_mask_applies_to_every_head(self):
+        layer = MultiHeadAttention(8, 4, causal=True)
+        layer.initialize(SGD())
+        layer.forward(np.random.randn(1, 5, 8))
+        for head in range(4):
+            with self.subTest(head=head):
+                np.testing.assert_allclose(
+                    np.triu(layer.weights[0, head], k=1), 0.0)
+
+    def test_future_tokens_cannot_change_earlier_outputs(self):
+        np.random.seed(3)
+        layer = MultiHeadAttention(8, 4, causal=True)
+        layer.initialize(SGD(learning_rate=0.0))
+        x = np.random.randn(1, 5, 8)
+        base = layer.forward(x)
+        disturbed = x.copy()
+        disturbed[0, -1, :] += 100.0
+        after = layer.forward(disturbed)
+        for position in range(4):
+            with self.subTest(position=position):
+                np.testing.assert_allclose(base[0, position], after[0, position],
+                                           atol=1e-10)
+
+    def test_masking_produces_no_nan_in_the_backward_pass(self):
+        layer = MultiHeadAttention(8, 4, causal=True)
+        layer.initialize(SGD())
+        x = np.random.randn(1, 5, 8)
+        out = layer.forward(x)
+        self.assertTrue(np.isfinite(layer.backward(np.random.randn(*out.shape))).all())
 
 
 if __name__ == "__main__":

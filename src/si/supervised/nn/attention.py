@@ -187,3 +187,125 @@ class SelfAttention(Layer):
     def __str__(self):
         kind = "causal" if self.causal else "full"
         return f"SelfAttention(d_model={self.d_model}, d_k={self.d_k}, {kind})"
+
+
+class MultiHeadAttention(Layer):
+    """Attention run several times in parallel, on different subspaces.
+
+    A single attention head produces one set of weights per position, so it can
+    express one relationship at a time: "attend to the subject of the sentence",
+    say. Real dependencies are plural -- a word may need its subject, its tense
+    and the topic three sentences back, all at once -- and averaging those into
+    one distribution loses them.
+
+    Multi-head attention splits the d_model features into `n_heads` slices of
+    width d_k = d_model / n_heads, runs an independent attention over each, and
+    concatenates the results. Each head is free to specialise, and the final
+    output projection mixes what they found back together.
+
+    Note the cost does not grow: h heads of width d_model/h do the same total
+    work as one head of width d_model. The heads are carved out of the same
+    projections, which is why one Dense per role still suffices -- the split is a
+    reshape, not extra parameters.
+
+    :param int d_model: embedding width; must divide evenly by n_heads.
+    :param int n_heads: number of parallel attention heads.
+    :param bool causal: if True, no position may attend to a later one.
+    """
+
+    def __init__(self, d_model, n_heads, causal=False):
+        super().__init__()
+        if n_heads < 1:
+            raise ValueError(f"n_heads must be at least 1; got {n_heads}.")
+        if d_model % n_heads:
+            raise ValueError(
+                f"d_model ({d_model}) must divide evenly by n_heads "
+                f"({n_heads}); the heads partition the features, so "
+                f"{d_model}/{n_heads} has to be a whole number."
+            )
+        self.d_model = d_model
+        self.n_heads = n_heads
+        self.d_k = d_model // n_heads
+        self.causal = causal
+        # One projection per role, producing all heads at once; the per-head
+        # split is done by reshaping the result.
+        self.W_q = Dense(d_model, d_model)
+        self.W_k = Dense(d_model, d_model)
+        self.W_v = Dense(d_model, d_model)
+        self.W_o = Dense(d_model, d_model)
+
+    def initialize(self, optimizer):
+        for projection in (self.W_q, self.W_k, self.W_v, self.W_o):
+            projection.initialize(optimizer)
+
+    def _split_heads(self, x):
+        """(n, t, d_model) -> (n, heads, t, d_k).
+
+        The head axis is moved in FRONT of the time axis so that matmul, which
+        batches over every leading axis, treats each head as an independent
+        (t, d_k) attention problem.
+        """
+        n, t, _ = x.shape
+        return x.reshape(n, t, self.n_heads, self.d_k).transpose(0, 2, 1, 3)
+
+    def _merge_heads(self, x):
+        """(n, heads, t, d_k) -> (n, t, d_model). Inverse of _split_heads."""
+        n, _, t, _ = x.shape
+        return x.transpose(0, 2, 1, 3).reshape(n, t, self.d_model)
+
+    def forward(self, input, training=True):
+        if input.ndim != 3:
+            raise ValueError(
+                "MultiHeadAttention expects (n_examples, seq_len, d_model); got "
+                f"{input.ndim} dimension(s) with shape {input.shape}."
+            )
+        if input.shape[2] != self.d_model:
+            raise ValueError(
+                f"This MultiHeadAttention was built for d_model={self.d_model}, "
+                f"but the input has {input.shape[2]} features."
+            )
+        seq_len = input.shape[1]
+
+        self.Q = self._split_heads(self.W_q.forward(input, training))
+        self.K = self._split_heads(self.W_k.forward(input, training))
+        self.V = self._split_heads(self.W_v.forward(input, training))
+
+        self.scale = 1.0 / np.sqrt(self.d_k)
+        scores = np.matmul(self.Q, np.swapaxes(self.K, -1, -2)) * self.scale
+
+        if self.causal:
+            # (t, t) broadcasts across both the example and the head axes: every
+            # head obeys the same ordering of time.
+            mask = np.triu(np.ones((seq_len, seq_len), dtype=bool), k=1)
+            scores = np.where(mask, -np.inf, scores)
+
+        self.weights = softmax(scores, axis=-1)      # (n, heads, t, t)
+        context = np.matmul(self.weights, self.V)    # (n, heads, t, d_k)
+        return self.W_o.forward(self._merge_heads(context), training)
+
+    def backward(self, output_error):
+        # Back through the output projection, then undo the concatenation.
+        d_context = self._split_heads(self.W_o.backward(output_error))
+
+        d_weights = np.matmul(d_context, np.swapaxes(self.V, -1, -2))
+        d_V = np.matmul(np.swapaxes(self.weights, -1, -2), d_context)
+
+        d_scores = softmax_backward(self.weights, d_weights, axis=-1)
+        if self.causal:
+            mask = np.triu(np.ones(d_scores.shape[-2:], dtype=bool), k=1)
+            d_scores = np.where(mask, 0.0, d_scores)
+        d_scores = d_scores * self.scale
+
+        d_Q = np.matmul(d_scores, self.K)
+        d_K = np.matmul(np.swapaxes(d_scores, -1, -2), self.Q)
+
+        # Merge the heads back before handing each gradient to its projection,
+        # then sum the three paths -- they all lead to the same input.
+        return (self.W_q.backward(self._merge_heads(d_Q))
+                + self.W_k.backward(self._merge_heads(d_K))
+                + self.W_v.backward(self._merge_heads(d_V)))
+
+    def __str__(self):
+        kind = "causal" if self.causal else "full"
+        return (f"MultiHeadAttention(d_model={self.d_model}, "
+                f"heads={self.n_heads}, d_k={self.d_k}, {kind})")
