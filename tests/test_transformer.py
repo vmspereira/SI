@@ -220,10 +220,9 @@ class TestTransformerBlock(unittest.TestCase):
         self.assertEqual(TransformerBlock(8, 2).d_ff, 32)
         self.assertEqual(TransformerBlock(8, 2, d_ff=5).d_ff, 5)
 
-    def test_zeroed_branches_make_it_the_identity(self):
-        # What the residual connections buy: a block that has learned nothing
-        # passes its input through unharmed, so stacking cannot make things worse
-        # before training makes them better.
+    def zeroed_block(self):
+        """A block whose two sub-layer branches contribute nothing, so only the
+        residual path and the normalization remain."""
         np.random.seed(0)
         block = TransformerBlock(8, 2)
         block.initialize(SGD())
@@ -231,8 +230,36 @@ class TestTransformerBlock(unittest.TestCase):
         block.attention.W_o.bias[:] = 0
         block.ff_out.weights[:] = 0
         block.ff_out.bias[:] = 0
+        return block
+
+    def test_zeroed_branches_leave_only_the_normalizations(self):
+        # POST-norm puts LayerNorm ON the residual path, so even a block that
+        # contributes nothing does not pass its input through untouched: it
+        # returns LayerNorm(LayerNorm(x)).
+        #
+        # This is the arrangement of the original paper, and this test is where
+        # the cost of it is visible. Under PRE-norm the same block would return x
+        # exactly, because the shortcut would be a clean sum.
+        block = self.zeroed_block()
         x = np.random.randn(2, 5, 8)
-        np.testing.assert_allclose(block.forward(x), x)
+        out = block.forward(x)
+        self.assertFalse(np.allclose(out, x))
+        np.testing.assert_allclose(
+            out, block.norm2.forward(block.norm1.forward(x)))
+
+    def test_the_residual_shortcut_still_carries_the_signal(self):
+        # The residual is doing its job even with both branches dead: the output
+        # is a normalised version of the input, so its ORDERING is preserved --
+        # information has passed through rather than been destroyed.
+        block = self.zeroed_block()
+        x = np.random.randn(2, 5, 8)
+        out = block.forward(x)
+        for example in range(x.shape[0]):
+            for position in range(x.shape[1]):
+                with self.subTest(example=example, position=position):
+                    np.testing.assert_array_equal(
+                        np.argsort(x[example, position]),
+                        np.argsort(out[example, position]))
 
     def test_gradient_matches_numerical(self):
         # The end-to-end check. Each residual copies the incoming gradient to
